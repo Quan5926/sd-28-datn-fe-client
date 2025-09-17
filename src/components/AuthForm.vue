@@ -59,21 +59,21 @@
           </div>
 
           <form @submit.prevent="handleSignIn" class="auth-form">
-            <!-- Email Field -->
+            <!-- Username Field -->
             <div class="form-group">
               <label class="form-label">
-                <iconify-icon icon="solar:letter-bold-duotone"></iconify-icon>
-                Email
+                <iconify-icon icon="solar:user-bold-duotone"></iconify-icon>
+                Tên đăng nhập
               </label>
               <input
-                type="email"
-                v-model="signInForm.email"
+                type="text"
+                v-model="signInForm.username"
                 class="form-input"
-                :class="{ 'error': errors.loginEmail }"
-                placeholder="Nhập email của bạn"
+                :class="{ 'error': errors.loginUsername }"
+                placeholder="Nhập tên đăng nhập của bạn"
                 required
               />
-              <span v-if="errors.loginEmail" class="error-message">{{ errors.loginEmail }}</span>
+              <span v-if="errors.loginUsername" class="error-message">{{ errors.loginUsername }}</span>
             </div>
 
             <!-- Password Field -->
@@ -267,9 +267,11 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import axios from 'axios';
+import authService from '../services/authService.js';
+import { useNotification } from '../composables/useNotification.js';
 
 const router = useRouter();
+const { success, error } = useNotification();
 
 // State management
 const isRegisterMode = ref(false);
@@ -294,7 +296,7 @@ const signUpForm = ref({
 
 // Form data for Sign In
 const signInForm = ref({
-  email: '',
+  username: '',
   password: '',
   rememberMe: false
 });
@@ -368,10 +370,8 @@ const validateSignUp = () => {
 const validateSignIn = () => {
   errors.value = {};
   
-  if (!signInForm.value.email.trim()) {
-    errors.value.loginEmail = 'Vui lòng nhập email';
-  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(signInForm.value.email)) {
-    errors.value.loginEmail = 'Email không hợp lệ';
+  if (!signInForm.value.username.trim()) {
+    errors.value.loginUsername = 'Vui lòng nhập tên đăng nhập';
   }
   
   if (!signInForm.value.password.trim()) {
@@ -399,7 +399,7 @@ const handleSignUp = async () => {
     });
     
     console.log('Sign Up Success:', response.data);
-    showMessageBox('Đăng ký thành công!');
+    success('Đăng ký thành công!');
     
     // Switch to login form after successful registration
     showLogin();
@@ -435,19 +435,15 @@ const handleSignIn = async () => {
   loginError.value = '';
 
   try {
-    const response = await axios.post('http://a5687b208ca7ac57.mokky.dev/auth', {
-      email: signInForm.value.email,
+    const result = await authService.login({
+      username: signInForm.value.username,
       password: signInForm.value.password,
+      rememberMe: signInForm.value.rememberMe
     });
     
-    console.log('Sign In Success:', response.data);
+    console.log('Sign In Success:', result);
     
-    // Store user info if needed
-    if (signInForm.value.rememberMe) {
-      localStorage.setItem('remember_me', 'true');
-    }
-    
-    showMessageBox('Đăng nhập thành công!');
+    success('Đăng nhập thành công!');
     
     // Redirect to home page after successful login
     setTimeout(() => {
@@ -456,11 +452,7 @@ const handleSignIn = async () => {
     
   } catch (error) {
     console.error('Sign In Error:', error);
-    if (error.response && error.response.status === 401) {
-      loginError.value = 'Email hoặc mật khẩu không đúng';
-    } else {
-      loginError.value = 'Đăng nhập thất bại! Vui lòng thử lại sau';
-    }
+    loginError.value = error.message || 'Đăng nhập thất bại! Vui lòng thử lại sau';
   } finally {
     isLoading.value = false;
   }
@@ -468,12 +460,12 @@ const handleSignIn = async () => {
 
 // Handle Forgot Password
 const handleForgotPassword = () => {
-  if (!signInForm.value.email.trim()) {
-    errors.value.loginEmail = 'Vui lòng nhập email để khôi phục mật khẩu';
+  if (!signInForm.value.username.trim()) {
+    errors.value.loginUsername = 'Vui lòng nhập tên đăng nhập để khôi phục mật khẩu';
     return;
   }
   
-  showMessageBox('Link khôi phục mật khẩu đã được gửi đến email của bạn');
+  success('Link khôi phục mật khẩu đã được gửi đến email của bạn');
 };
 
 // Function to show a custom message box

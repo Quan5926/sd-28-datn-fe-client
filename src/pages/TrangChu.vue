@@ -1,27 +1,27 @@
 <script setup>
-import axios from 'axios'
 import { inject, ref, reactive, watch, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import CardList from '../components/CardList.vue'
 import Banner from '../components/Banner.vue'
+import { productAPI, mapBackendToFrontend } from '../services/productAPI.js'
 
-// Dữ liệu cho các bộ sưu tập được lấy từ Banner.vue
-const collections = [
+// Dữ liệu cho các bộ sưu tập theo danh mục thực từ backend
+const collections = ref([
   {
     title: 'GIÀY THỂ THAO',
-    brandIds: [1, 2, 3, 6, 7, 8, 9, 10, 11, 12, 23, 24, 25],
+    categoryName: 'Giày thể thao',
     interval: 6000 // Thêm khoảng thời gian riêng cho từng bộ sưu tập
   },
   {
     title: 'GIÀY THỜI TRANG',
-    brandIds: [13, 14, 15, 16, 17, 18, 19, 20, 21, 22],
+    categoryName: 'Giày thời trang',
     interval: 7000
   },
   {
     title: 'GIÀY CASUAL',
-    brandIds: [4, 5],
+    categoryName: 'Casual',
     interval: 8000
   }
-]
+])
 
 // Injection for cart actions
 const { addToCart, removeFromCart, cart } = inject('cartActions')
@@ -136,60 +136,15 @@ const sortAndFilterAllItems = () => {
   sortedAndFilteredItems.value = filteredList
 }
 
-// Fake data for testing UI
-const generateFakeProducts = () => {
-  const fakeProducts = []
-  const brands = ['Nike', 'Adidas', 'Puma', 'Converse', 'Vans', 'New Balance', 'Reebok', 'Jordan']
-  const categories = ['Air Max', 'Stan Smith', 'Chuck Taylor', 'Old Skool', 'Ultraboost', 'Classic', 'Running', 'Basketball']
-  const statuses = [
-    { id: 3, name: 'Đang kinh doanh' },
-    { id: 5, name: 'Hết hàng' }
-  ]
-
-  for (let i = 1; i <= 50; i++) {
-    const brand = brands[Math.floor(Math.random() * brands.length)]
-    const category = categories[Math.floor(Math.random() * categories.length)]
-    const status = statuses[Math.floor(Math.random() * statuses.length)]
-    
-    const colors = [
-      ['#000000', '#FFFFFF', '#FF0000'], // Đen, Trắng, Đỏ
-      ['#0066CC', '#FFD700', '#32CD32'], // Xanh dương, Vàng, Xanh lá
-      ['#FF69B4', '#800080', '#FFA500'], // Hồng, Tím, Cam
-      ['#8B4513', '#708090', '#DC143C'], // Nâu, Xám, Đỏ đậm
-      ['#000080', '#FF1493', '#00CED1']  // Xanh navy, Hồng đậm, Xanh ngọc
-    ]
-    
-    fakeProducts.push({
-      id: i,
-      tenSanPham: `${brand} ${category} ${i.toString().padStart(3, '0')}`,
-      urlAnhDaiDien: `/sneakers/sneakers-${((i - 1) % 48) + 1}-alt1.jpg`,
-      giaBanThapNhat: Math.floor(Math.random() * 3000000) + 500000, // 500k - 3.5M VND
-      soLuongTonKho: status.id === 5 ? 0 : Math.floor(Math.random() * 100) + 1,
-      idTrangThai: status.id,
-      tenTrangThai: status.name,
-      thuongHieu: {
-        id: Math.floor(Math.random() * 25) + 1,
-        ten: brand
-      },
-      colors: colors[Math.floor(Math.random() * colors.length)]
-    })
-  }
-  return fakeProducts
-}
 
 // Function to fetch all items for the main section
 const fetchAllItems = async () => {
   try {
-    const { data } = await axios.get('http://localhost:8080/api/san-phams', {
-      params: {
-        page: 0,
-        size: 9999
-      }
-    })
-
+    const response = await productAPI.getProducts({ page: 0, size: 9999 })
+    
     // Sắp xếp dữ liệu gốc theo trạng thái trước khi gán vào allItems
     const statusOrder = { '3': 1, '5': 2 }
-    const sortedData = data.content.filter(item => item.idTrangThai !== 4).sort((a, b) => {
+    const sortedData = response.content.filter(item => item.idTrangThai !== 4).sort((a, b) => {
       const statusA = statusOrder[a.idTrangThai] || 99
       const statusB = statusOrder[b.idTrangThai] || 99
 
@@ -199,116 +154,65 @@ const fetchAllItems = async () => {
       return a.tenSanPham.localeCompare(b.tenSanPham)
     })
 
-    allItems.value = sortedData.map((obj) => ({
-      ...obj,
-      title: obj.tenSanPham,
-      imageUrl: obj.urlAnhDaiDien || '/images/default-placeholder.jpg',
-      price: obj.giaBanThapNhat,
-      totalStock: obj.soLuongTonKho,
-      productStatus: obj.tenTrangThai,
-      isAdded: cart.value.some((cartItem) => cartItem.id === obj.id),
-      isFavorite: false
-    }))
+    allItems.value = sortedData.map((obj) => {
+      const mappedProduct = mapBackendToFrontend.product(obj)
+      return {
+        ...mappedProduct,
+        isAdded: cart.value.some((cartItem) => cartItem.id === obj.id),
+        isFavorite: false
+      }
+    })
     sortAndFilterAllItems()
   } catch (err) {
-    console.error('Lỗi khi lấy dữ liệu sản phẩm từ API, sử dụng fake data:', err)
-    
-    // Fallback to fake data
-    const fakeData = generateFakeProducts()
-    const statusOrder = { '3': 1, '5': 2 }
-    const sortedData = fakeData.filter(item => item.idTrangThai !== 4).sort((a, b) => {
-      const statusA = statusOrder[a.idTrangThai] || 99
-      const statusB = statusOrder[b.idTrangThai] || 99
-
-      if (statusA !== statusB) {
-        return statusA - statusB
-      }
-      return a.tenSanPham.localeCompare(b.tenSanPham)
-    })
-
-    allItems.value = sortedData.map((obj) => ({
-      ...obj,
-      title: obj.tenSanPham,
-      imageUrl: obj.urlAnhDaiDien || '/images/default-placeholder.jpg',
-      price: obj.giaBanThapNhat,
-      totalStock: obj.soLuongTonKho,
-      productStatus: obj.tenTrangThai,
-      isAdded: cart.value.some((cartItem) => cartItem.id === obj.id),
-      isFavorite: false
-    }))
+    console.error('Lỗi khi lấy dữ liệu sản phẩm từ API:', err)
+    // Set empty array if API fails
+    allItems.value = []
     sortAndFilterAllItems()
   }
 }
 
-// Function to fetch items for a specific collection by brand IDs
+// Optimized function to fetch items for a specific collection by category
 const fetchCollectionItems = async (collection) => {
   try {
-    const brandIdsString = collection.brandIds.join(',')
-    const { data } = await axios.get(`http://localhost:8080/api/san-phams/by-thuong-hieu?thuongHieuIds=${brandIdsString}`)
-
-    const filteredData = data.content.filter(item => item.idTrangThai !== 4)
-
-    const statusOrder = { '3': 1, '5': 2 }
-    filteredData.sort((a, b) => {
-      const statusA = statusOrder[a.idTrangThai] || 99
-      const statusB = statusOrder[b.idTrangThai] || 99
-
-      if (statusA !== statusB) {
-        return statusA - statusB
-      }
-      return a.tenSanPham.localeCompare(b.tenSanPham)
-    })
-
-    collectionItems[collection.title] = filteredData.map((obj) => ({
-      ...obj,
-      title: obj.tenSanPham,
-      imageUrl: obj.urlAnhDaiDien || '/images/default-placeholder.jpg',
-      price: obj.giaBanThapNhat,
-      totalStock: obj.soLuongTonKho,
-      productStatus: obj.tenTrangThai,
-      isAdded: cart.value.some((cartItem) => cartItem.id === obj.id),
-      isFavorite: false
-    }))
-    // Calculate total pages for the collection
-    collectionPagination[collection.title].totalPages = Math.ceil(collectionItems[collection.title].length / collectionPagination[collection.title].itemsPerPage);
-  } catch (err) {
-    console.error(`Lỗi khi lấy sản phẩm cho bộ sưu tập ${collection.title}, sử dụng fake data:`, err)
+    console.log(`Fetching products for ${collection.title} with category: "${collection.categoryName}"`)
     
-    // Fallback to fake data for collections
-    const fakeData = generateFakeProducts()
-    const filteredByBrand = fakeData.filter(item => 
-      collection.brandIds.includes(item.thuongHieu.id) && item.idTrangThai !== 4
+    const response = await productAPI.getProductsByCategory(collection.categoryName, 0, 20)
+    
+    if (response?.content?.length > 0) {
+      const mappedProducts = response.content.map(backendProduct => 
+        mapBackendToFrontend.product(backendProduct)
+      )
+      
+      collectionItems[collection.title] = mappedProducts
+      console.log(`✅ Loaded ${mappedProducts.length} products for ${collection.title}`)
+    } else {
+      console.warn(`⚠️ No products found for ${collection.title} with category "${collection.categoryName}"`)
+      collectionItems[collection.title] = []
+    }
+    
+    collectionPagination[collection.title].totalPages = Math.ceil(
+      collectionItems[collection.title].length / collectionPagination[collection.title].itemsPerPage
     )
+  } catch (err) {
+    console.error(`❌ Error fetching products for ${collection.title}:`, err)
+    collectionItems[collection.title] = []
+    collectionPagination[collection.title].totalPages = 0
+  }
+}
 
-    const statusOrder = { '3': 1, '5': 2 }
-    filteredByBrand.sort((a, b) => {
-      const statusA = statusOrder[a.idTrangThai] || 99
-      const statusB = statusOrder[b.idTrangThai] || 99
-
-      if (statusA !== statusB) {
-        return statusA - statusB
-      }
-      return a.tenSanPham.localeCompare(b.tenSanPham)
-    })
-
-    collectionItems[collection.title] = filteredByBrand.map((obj) => ({
-      ...obj,
-      title: obj.tenSanPham,
-      imageUrl: obj.urlAnhDaiDien || '/images/default-placeholder.jpg',
-      price: obj.giaBanThapNhat,
-      totalStock: obj.soLuongTonKho,
-      productStatus: obj.tenTrangThai,
-      isAdded: cart.value.some((cartItem) => cartItem.id === obj.id),
-      isFavorite: false
-    }))
-    // Calculate total pages for the collection
-    collectionPagination[collection.title].totalPages = Math.ceil(collectionItems[collection.title].length / collectionPagination[collection.title].itemsPerPage);
+// Optimized category loading - no need for complex mapping since we already have exact names
+const loadCategoriesAndUpdateCollections = async () => {
+  try {
+    console.log('Using predefined category names for homepage sections')
+    // Categories are already correctly set in collections array, no need to fetch and map
+  } catch (error) {
+    console.error('Error in category setup:', error)
   }
 }
 
 // Fetch all product items for the main list
 const fetchAllCollections = async () => {
-  const promises = collections.map(collection => fetchCollectionItems(collection));
+  const promises = collections.value.map(collection => fetchCollectionItems(collection));
   await Promise.all(promises);
 }
 
@@ -351,17 +255,17 @@ const startCollectionAutoplay = (collection) => {
 };
 
 onMounted(async () => {
-  // Wait for all data to be fetched before starting autoplay
-  await Promise.all([
-    fetchAllItems(),
-    fetchAllCollections()
-  ]);
+  // First load categories from database and update collections
+  await loadCategoriesAndUpdateCollections()
   
-  // Now, all totalPages values are reliable, so we can start autoplay
-  startAutoplay();
-  collections.forEach(collection => {
-    startCollectionAutoplay(collection);
-  });
+  await fetchAllItems()
+  await fetchAllCollections()
+  startAutoplay()
+  
+  // Start autoplay for each collection
+  collections.value.forEach(collection => {
+    startCollectionAutoplay(collection)
+  })
 })
 
 onUnmounted(() => {
@@ -481,7 +385,7 @@ const onPageClick = (page) => {
 const nextCollectionPage = async (collectionTitle) => {
   const currentCollection = collectionPagination[collectionTitle];
   // Lỗi: Biến `collection` không được định nghĩa, cần tìm lại từ `collections`
-  const collection = collections.find(c => c.title === collectionTitle);
+  const collection = collections.value.find(c => c.title === collectionTitle);
   if (currentCollection.currentPage < currentCollection.totalPages - 1) {
     // Sửa lỗi: Truyền đối tượng collection đã tìm thấy vào hàm
     startCollectionAutoplay(collection); // Restart interval on manual interaction
@@ -498,7 +402,7 @@ const nextCollectionPage = async (collectionTitle) => {
 const prevCollectionPage = async (collectionTitle) => {
   const currentCollection = collectionPagination[collectionTitle];
   // Lỗi: Biến `collection` không được định nghĩa, cần tìm lại từ `collections`
-  const collection = collections.find(c => c.title === collectionTitle);
+  const collection = collections.value.find(c => c.title === collectionTitle);
   if (currentCollection.currentPage > 0) {
     // Sửa lỗi: Truyền đối tượng collection đã tìm thấy vào hàm
     startCollectionAutoplay(collection); // Restart interval on manual interaction

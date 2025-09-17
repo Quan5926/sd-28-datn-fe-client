@@ -105,7 +105,7 @@
             <h3 class="text-lg font-semibold mb-3">Chọn kích cỡ</h3>
             <div class="grid grid-cols-4 gap-2">
               <button
-                v-for="size in product.sizes"
+                v-for="size in availableSizesForColor"
                 :key="size.size"
                 @click="selectedSize = size"
                 :disabled="size.stock === 0"
@@ -122,7 +122,7 @@
               </button>
             </div>
             <p v-if="selectedSize" class="text-sm text-gray-600 mt-2">
-              Còn {{ selectedSize.stock }} sản phẩm
+              Còn {{ selectedSize.stock }} sản phẩm - {{ formatPrice(selectedSize.price) }}
             </p>
           </div>
 
@@ -181,6 +181,7 @@
 <script setup>
 import { ref, computed, onMounted, inject } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { productAPI, mapBackendToFrontend } from '../services/productAPI.js'
 
 const route = useRoute()
 const router = useRouter()
@@ -189,42 +190,45 @@ const { addToCart: addToCartAction } = inject('cartActions', {})
 const selectedImage = ref('')
 const selectedSize = ref(null)
 const selectedColor = ref(null)
+const loading = ref(true)
 
-// Fake product data
+// Product data from API
 const product = ref({
-  id: 1,
-  name: 'Nike Air Max 270 React',
-  brand: 'Nike',
-  category: 'Giày thể thao nam',
-  description: 'Nike Air Max 270 React kết hợp thiết kế iconic của Air Max với công nghệ React foam tiên tiến, mang đến trải nghiệm êm ái và năng động cho mọi bước chân.',
-  features: [
-    'Đế React foam siêu nhẹ và đàn hồi',
-    'Đơn vị Air Max 270 độc quyền',
-    'Upper mesh thoáng khí',
-    'Thiết kế hiện đại, phù hợp nhiều phong cách'
-  ],
-  images: [
-    '/sneakers/sneakers-1-alt1.jpg',
-    '/sneakers/sneakers-1-alt2.jpg',
-    '/sneakers/sneakers-1-alt3.jpg',
-    '/sneakers/sneakers-2-alt1.jpg'
-  ],
-  colors: [
-    { name: 'Đen', code: '#000000' },
-    { name: 'Trắng', code: '#FFFFFF' },
-    { name: 'Đỏ', code: '#FF0000' },
-    { name: 'Xanh dương', code: '#0066CC' },
-    { name: 'Xám', code: '#708090' }
-  ],
-  sizes: [
-    { size: '39', stock: 5, price: 2890000 },
-    { size: '40', stock: 3, price: 2890000 },
-    { size: '41', stock: 8, price: 2890000 },
-    { size: '42', stock: 0, price: 2890000 },
-    { size: '43', stock: 2, price: 2890000 },
-    { size: '44', stock: 6, price: 2890000 }
-  ],
+  id: null,
+  name: '',
+  brand: '',
+  category: '',
+  description: '',
+  features: [],
+  images: [],
+  colors: [],
+  sizes: [],
   isFavorite: false
+})
+
+// Product details from API
+const productDetails = ref([])
+
+// Computed property to show only sizes available for selected color
+const availableSizesForColor = computed(() => {
+  if (!selectedColor.value || !product.value.variants) {
+    return product.value.sizes || []
+  }
+  
+  // Filter variants that match the selected color
+  const colorVariants = product.value.variants.filter(variant => 
+    variant.colorId === selectedColor.value.id
+  )
+  
+  // Create size objects with stock and price from matching variants
+  const sizesForColor = colorVariants.map(variant => ({
+    size: variant.size,
+    sizeId: variant.sizeId,
+    stock: variant.stock,
+    price: variant.price
+  }))
+  
+  return sizesForColor
 })
 
 const selectedVariant = computed(() => {
@@ -270,12 +274,141 @@ const toggleFavorite = () => {
   console.log(`${product.value.isFavorite ? 'Đã thêm' : 'Đã xóa'} khỏi danh sách yêu thích`)
 }
 
+// Load product data from API
+const loadProductData = async () => {
+  try {
+    loading.value = true
+    const productId = route.params.id
+    
+    // Get product details
+    const detailsResponse = await productAPI.getProductDetails(productId)
+    productDetails.value = detailsResponse
+    
+    if (detailsResponse && detailsResponse.length > 0) {
+      const firstDetail = detailsResponse[0]
+      const mappedProduct = mapBackendToFrontend.productDetail(firstDetail)
+      
+      // Build product object from details
+      product.value = {
+        id: mappedProduct.productId,
+        name: mappedProduct.name,
+        brand: mappedProduct.brand,
+        category: mappedProduct.danhMuc || 'Chưa phân loại',
+        description: mappedProduct.description || 'Sản phẩm chất lượng cao với thiết kế hiện đại và tính năng vượt trội.',
+        features: [
+          'Chất liệu cao cấp',
+          'Thiết kế hiện đại',
+          'Thoải mái khi sử dụng',
+          'Độ bền cao'
+        ],
+        images: [mappedProduct.imageUrl],
+        colors: [],
+        sizes: [],
+        isFavorite: false
+      }
+      
+      // Group details by color and size with proper variant mapping
+      const colorMap = new Map()
+      const colorSizeVariants = new Map() // Track color-size combinations
+      
+      detailsResponse.forEach(detail => {
+        const mappedDetail = mapBackendToFrontend.productDetail(detail)
+        
+        // Add unique colors with hex codes
+        if (!colorMap.has(mappedDetail.color)) {
+          colorMap.set(mappedDetail.color, {
+            name: mappedDetail.color,
+            code: mappedDetail.colorCode,
+            id: mappedDetail.colorId
+          })
+        }
+        
+        // Track color-size combinations for proper variant mapping
+        const variantKey = `${mappedDetail.color}-${mappedDetail.size}`
+        colorSizeVariants.set(variantKey, {
+          color: mappedDetail.color,
+          colorCode: mappedDetail.colorCode,
+          colorId: mappedDetail.colorId,
+          size: mappedDetail.size,
+          sizeId: mappedDetail.sizeId,
+          stock: mappedDetail.stock,
+          price: mappedDetail.price,
+          detailId: mappedDetail.id
+        })
+        
+        // Add more images if available
+        if (mappedDetail.imageUrl && !product.value.images.includes(mappedDetail.imageUrl)) {
+          product.value.images.push(mappedDetail.imageUrl)
+        }
+      })
+      
+      // Set colors from unique color map
+      product.value.colors = Array.from(colorMap.values())
+      
+      // Create sizes array with all available sizes across colors
+      const allSizes = new Map()
+      colorSizeVariants.forEach(variant => {
+        if (!allSizes.has(variant.size)) {
+          allSizes.set(variant.size, {
+            size: variant.size,
+            sizeId: variant.sizeId,
+            stock: 0,
+            price: variant.price
+          })
+        }
+        // Add stock from this variant
+        allSizes.get(variant.size).stock += variant.stock
+      })
+      
+      product.value.sizes = Array.from(allSizes.values())
+      
+      // Store variant mapping for color-size selection
+      product.value.variants = Array.from(colorSizeVariants.values())
+      
+      // Set default selections
+      selectedImage.value = product.value.images[0]
+      selectedColor.value = product.value.colors[0]
+      
+      // Set default size based on selected color's available sizes
+      if (selectedColor.value && product.value.variants) {
+        const colorVariants = product.value.variants.filter(variant => 
+          variant.colorId === selectedColor.value.id && variant.stock > 0
+        )
+        if (colorVariants.length > 0) {
+          selectedSize.value = {
+            size: colorVariants[0].size,
+            sizeId: colorVariants[0].sizeId,
+            stock: colorVariants[0].stock,
+            price: colorVariants[0].price
+          }
+        }
+      } else {
+        selectedSize.value = product.value.sizes.find(s => s.stock > 0) || product.value.sizes[0]
+      }
+    }
+  } catch (error) {
+    console.error('Error loading product data:', error)
+    // Set default fallback data
+    product.value = {
+      id: route.params.id,
+      name: 'Sản phẩm không tìm thấy',
+      brand: 'Unknown',
+      category: 'Chưa phân loại',
+      description: 'Không thể tải thông tin sản phẩm.',
+      features: [],
+      images: ['/sneakers/sneakers-1-alt1.jpg'],
+      colors: [{ name: 'Đen', code: '#000000' }],
+      sizes: [{ size: '42', stock: 0, price: 0 }],
+      isFavorite: false
+    }
+    selectedImage.value = product.value.images[0]
+    selectedColor.value = product.value.colors[0]
+  } finally {
+    loading.value = false
+  }
+}
+
 onMounted(() => {
-  selectedImage.value = product.value.images[0]
-  selectedColor.value = product.value.colors[0] // Set default color
-  
-  // Load product based on route params
-  const productId = route.params.id
-  console.log('Loading product:', productId)
+  loadProductData()
 })
 </script>

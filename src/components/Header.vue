@@ -1,16 +1,39 @@
 <script setup>
 import { useMainStore } from '../stores/MainStore.ts'
-import { inject, ref, computed } from 'vue' // Import inject and ref
+import { inject, ref, computed, onMounted } from 'vue'
+import authService from '../services/authService.js'
+import { useRouter } from 'vue-router'
 
 const mainStore = useMainStore()
 const { isDeviceMobile } = mainStore
+const router = useRouter()
 
-// Mock user data - replace with actual auth store/service
+// Real user data from auth service
 const currentUser = ref({
-  isLoggedIn: true, // Change this based on actual auth state
-  username: 'nguyenvana', // Replace with actual username
-  email: 'nguyenvana@example.com', // Replace with actual email
-  fullName: 'Nguyễn Văn A' // Replace with actual full name
+  isLoggedIn: false,
+  username: '',
+  email: '',
+  fullName: '',
+  role: ''
+})
+
+// Update user data from auth service
+const updateUserData = () => {
+  const user = authService.getUser()
+  const isAuthenticated = authService.isAuthenticated()
+  
+  currentUser.value = {
+    isLoggedIn: isAuthenticated,
+    username: user?.username || '',
+    email: user?.email || '',
+    fullName: user?.username || user?.email || '',
+    role: authService.getUserRole()
+  }
+}
+
+// Initialize user data on mount
+onMounted(() => {
+  updateUserData()
 })
 
 // Computed property for display name
@@ -43,6 +66,22 @@ const toggleAccountDropdown = () => {
 // Close dropdown when clicking outside
 const closeAccountDropdown = () => {
   isAccountDropdownOpen.value = false
+}
+
+// Handle logout
+const handleLogout = async () => {
+  try {
+    await authService.logout()
+    updateUserData()
+    closeAccountDropdown()
+    router.push('/auth')
+  } catch (error) {
+    console.error('Logout error:', error)
+    // Still update UI even if logout API fails
+    updateUserData()
+    closeAccountDropdown()
+    router.push('/auth')
+  }
 }
 </script>
 
@@ -159,7 +198,26 @@ const closeAccountDropdown = () => {
                 <div class="px-4 py-2 border-b border-gray-100">
                   <p class="text-sm font-medium text-gray-800">Xin chào, {{ currentUser.fullName }}!</p>
                   <p class="text-xs text-gray-500">{{ currentUser.email }}</p>
+                  <p class="text-xs text-blue-600 font-medium">{{ currentUser.role }}</p>
                 </div>
+                
+                <!-- Admin Panel Access -->
+                <a 
+                  v-if="authService.canAccessAdmin()"
+                  href="http://localhost:5173"
+                  target="_blank"
+                  @click="closeAccountDropdown"
+                  class="flex items-center px-4 py-3 text-gray-700 hover:bg-gray-50 transition-colors border-b border-gray-100"
+                >
+                  <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                  </svg>
+                  Quản trị hệ thống
+                  <svg class="w-4 h-4 ml-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                  </svg>
+                </a>
                 
                 <router-link 
                   to="/account/overview" 
@@ -207,7 +265,7 @@ const closeAccountDropdown = () => {
                 
                 <div class="border-t border-gray-100 mt-2">
                   <button 
-                    @click="closeAccountDropdown"
+                    @click="handleLogout"
                     class="flex items-center w-full px-4 py-3 text-gray-700 hover:bg-gray-50 transition-colors"
                   >
                     <svg class="w-5 h-5 mr-3 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">

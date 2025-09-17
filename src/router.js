@@ -1,4 +1,5 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
+import authService from './services/authService.js'
 import TrangChu from './pages/TrangChu.vue'
 import SanPham from './pages/SanPham.vue'
 import GiamGia from './pages/GiamGia.vue'
@@ -33,17 +34,18 @@ const routes = [
   { path: '/auth', name: 'auth', component: AuthForm },
   { path: '/checkout', name: 'checkout', component: CheckoutPage }, // <<< Đã thêm route
   { path: '/order-success/:orderId/:paymentStatus?', component: OrderSuccessPage, name: 'order-success', props: true }, // Route mới cho trang thành công
-  
-  // Account Dashboard routes
+
+  // Account Dashboard routes (requires authentication)
   {
     path: '/account',
     component: AccountDashboard,
+    meta: { requiresAuth: true },
     children: [
       { path: '', redirect: '/account/overview' },
-      { path: 'overview', name: 'account-overview', component: TongQuan },
-      { path: 'purchase-history', name: 'account-purchase-history', component: LichSuMuaHang },
-      { path: 'profile', name: 'account-profile', component: ThongTinTaiKhoan },
-      { path: 'feedback', name: 'account-feedback', component: GopYPhanHoi }
+      { path: 'overview', name: 'account-overview', component: TongQuan, meta: { requiresAuth: true } },
+      { path: 'purchase-history', name: 'account-purchase-history', component: LichSuMuaHang, meta: { requiresAuth: true } },
+      { path: 'profile', name: 'account-profile', component: ThongTinTaiKhoan, meta: { requiresAuth: true } },
+      { path: 'feedback', name: 'account-feedback', component: GopYPhanHoi, meta: { requiresAuth: true } }
     ]
   }
 ]
@@ -51,6 +53,22 @@ const routes = [
 const router = createRouter({
   history: createWebHashHistory(),
   routes
+})
+
+// Navigation guard for authentication
+router.beforeEach((to, from, next) => {
+  const requiresAuth = to.matched.some(record => record.meta.requiresAuth)
+  const isAuthenticated = authService.isAuthenticated()
+
+  if (requiresAuth && !isAuthenticated) {
+    // Redirect to auth page if route requires authentication and user is not logged in
+    next('/auth')
+  } else if (to.path === '/auth' && isAuthenticated) {
+    // Redirect authenticated users away from auth page
+    next('/')
+  } else {
+    next()
+  }
 })
 
 export default router

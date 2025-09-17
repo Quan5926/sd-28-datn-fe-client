@@ -113,7 +113,7 @@
       </h3>
 
       <!-- Category -->
-      <p class="text-sm text-gray-500 mb-3">{{ getCategory(item.title) }}</p>
+      <p class="text-sm text-gray-500 mb-3">{{ getCategory(item) }}</p>
 
       <!-- Price -->
       <div class="flex items-center justify-between">
@@ -195,7 +195,16 @@ const getBrand = (title) => {
   return brands.find(brand => title.includes(brand)) || 'PhoStep'
 }
 
-const getCategory = (title) => {
+const getCategory = (product) => {
+  // Use real category from backend if available
+  if (product.danhMuc) {
+    return product.danhMuc
+  }
+  if (product.categoryName) {
+    return product.categoryName
+  }
+  // Fallback to title-based detection
+  const title = product.title || product.name || ''
   if (title.includes('Air Max') || title.includes('Running')) return 'Giày chạy bộ'
   if (title.includes('Basketball') || title.includes('Jordan')) return 'Giày bóng rổ'
   if (title.includes('Stan Smith') || title.includes('Classic')) return 'Giày thời trang'
