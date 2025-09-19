@@ -14,8 +14,229 @@
         </p>
       </div>
 
-      <!-- Search Section -->
-      <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8">
+      <!-- Logged-in Customer: Order History -->
+      <div v-if="isLoggedIn" class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8">
+        <div class="mb-6">
+          <h2 class="text-2xl font-semibold text-gray-900 mb-2">Lịch sử đơn hàng của bạn</h2>
+          <p class="text-gray-600">Tất cả đơn hàng bạn đã đặt</p>
+        </div>
+        
+        <div v-if="loading" class="text-center py-8">
+          <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p class="text-gray-600 mt-4">Đang tải đơn hàng...</p>
+        </div>
+        
+        <div v-else-if="customerOrders.length > 0" class="space-y-6">
+          <div 
+            v-for="order in customerOrders" 
+            :key="order.id"
+            :id="`order-${order.id}`"
+            :class="[
+              'bg-white border border-gray-200 rounded-xl overflow-hidden transition-all duration-200',
+              { 'shadow-lg bg-gray-50': expandedOrder === order.id, 'hover:shadow-lg': expandedOrder !== order.id }
+            ]"
+          >
+            <!-- Order Header -->
+            <div class="p-6 border-b border-gray-100">
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <div class="mb-4 sm:mb-0">
+                  <h3 class="text-xl font-bold text-gray-900 mb-1">{{ order.orderNumber || order.ma }}</h3>
+                  <div class="flex items-center text-sm text-gray-600 space-x-4">
+                    <span>{{ order.orderDate }}</span>
+                    <span>•</span>
+                    <span>{{ order.customerName || order.tenKhachHang }}</span>
+                  </div>
+                </div>
+                <div class="flex flex-col sm:items-end">
+                  <span 
+                    :class="getStatusClass(order.status)"
+                    class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium mb-2"
+                  >
+                    {{ getStatusText(order.status) }}
+                  </span>
+                  <p class="text-2xl font-bold text-primary-600">{{ formatCurrency(order.total || order.tongTienSauGiam) }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Order Items Preview -->
+            <div v-if="order.items && order.items.length > 0" class="p-6">
+              <h4 class="text-lg font-semibold text-gray-900 mb-4">Sản phẩm ({{ order.items.length }})</h4>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div 
+                  v-for="item in order.items.slice(0, 2)" 
+                  :key="item.id"
+                  class="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg"
+                >
+                  <img 
+                    :src="item.anhSanPham || '/images/default-product.jpg'" 
+                    :alt="item.tenSanPham"
+                    class="w-12 h-12 object-cover rounded-lg border border-gray-200"
+                    @error="$event.target.src='/images/default-product.jpg'"
+                  >
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-900 truncate">{{ item.tenSanPham }}</p>
+                    <div class="flex items-center space-x-2 text-xs text-gray-500">
+                      <span v-if="item.mauSac">{{ item.mauSac }}</span>
+                      <span v-if="item.mauSac && item.kichCo">•</span>
+                      <span v-if="item.kichCo">Size {{ item.kichCo }}</span>
+                    </div>
+                    <p class="text-xs text-gray-600">SL: {{ item.soLuong }} - {{ formatCurrency(item.giaBan) }}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <!-- Show more items indicator -->
+              <div v-if="order.items.length > 2" class="mt-3 text-center">
+                <span class="text-sm text-gray-500">và {{ order.items.length - 2 }} sản phẩm khác</span>
+              </div>
+            </div>
+
+            <!-- Order Actions -->
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-100">
+              <div class="flex justify-between items-center">
+                <div class="text-sm text-gray-600">
+                  <span>Địa chỉ: {{ order.shippingAddress || order.diaChiKhachHang }}</span>
+                </div>
+                <button 
+                  @click="toggleOrderDetails(order.id)"
+                  class="inline-flex items-center px-4 py-2 text-sm font-medium text-primary-600 bg-primary-50 rounded-lg hover:bg-primary-100 transition-colors"
+                >
+                  <svg 
+                    class="w-4 h-4 mr-2 transition-transform duration-200" 
+                    :class="{ 'rotate-180': expandedOrder === order.id }"
+                    fill="none" 
+                    stroke="currentColor" 
+                    viewBox="0 0 24 24"
+                  >
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                  </svg>
+                  {{ expandedOrder === order.id ? 'Thu gọn' : 'Xem chi tiết' }}
+                </button>
+              </div>
+            </div>
+            
+            <!-- Expanded Order Details -->
+            <div 
+              v-if="expandedOrder === order.id" 
+              class="border-t border-gray-200 bg-white animate-fadeIn"
+            >
+              <div class="p-6">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                  <!-- Customer Info -->
+                  <div class="space-y-4">
+                    <h4 class="font-semibold text-gray-900 text-lg">Thông tin khách hàng</h4>
+                    <div class="space-y-3">
+                      <div class="flex justify-between">
+                        <span class="text-gray-600">Tên khách hàng:</span>
+                        <span class="font-medium">{{ order.tenKhachHang || order.customerName }}</span>
+                      </div>
+                      <div class="flex justify-between">
+                        <span class="text-gray-600">Số điện thoại:</span>
+                        <span class="font-medium">{{ order.soDienThoaiKhachHang || order.phoneNumber }}</span>
+                      </div>
+                      <div class="flex justify-between">
+                        <span class="text-gray-600">Địa chỉ:</span>
+                        <span class="font-medium text-right">{{ order.diaChiKhachHang || order.shippingAddress }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <!-- Order Summary -->
+                  <div class="space-y-4">
+                    <h4 class="font-semibold text-gray-900 text-lg">Tóm tắt đơn hàng</h4>
+                    <div class="space-y-3">
+                      <div class="flex justify-between">
+                        <span class="text-gray-600">Mã đơn hàng:</span>
+                        <span class="font-medium">{{ order.ma || order.orderNumber }}</span>
+                      </div>
+                      <div class="flex justify-between">
+                        <span class="text-gray-600">Ngày đặt:</span>
+                        <span class="font-medium">{{ order.orderDate }}</span>
+                      </div>
+                      <div class="flex justify-between">
+                        <span class="text-gray-600">Trạng thái:</span>
+                        <span 
+                          :class="getStatusClass(order.status || order.trangThai)"
+                          class="px-3 py-1 rounded-full text-sm font-medium"
+                        >
+                          {{ getStatusText(order.status || order.trangThai) }}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Order Items -->
+                <div v-if="order.items && order.items.length > 0" class="mb-6">
+                  <h4 class="font-semibold text-gray-900 text-lg mb-4">Sản phẩm đã đặt</h4>
+                  <div class="space-y-4">
+                    <div 
+                      v-for="item in order.items" 
+                      :key="item.id"
+                      class="flex items-start space-x-4 p-4 bg-gray-50 border border-gray-200 rounded-lg"
+                    >
+                      <img 
+                        :src="item.anhSanPham || '/images/default-product.jpg'" 
+                        :alt="item.tenSanPham"
+                        class="w-16 h-16 object-cover rounded-lg"
+                        @error="$event.target.src='/images/default-product.jpg'"
+                      >
+                      <div class="flex-1">
+                        <h5 class="font-medium text-gray-900">{{ item.tenSanPham }}</h5>
+                        <p class="text-sm text-gray-600">Mã: {{ item.maSanPham }}</p>
+                        <div class="flex flex-wrap gap-2 mt-2">
+                          <span v-if="item.mauSac" class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-800">
+                            {{ item.mauSac }}
+                          </span>
+                          <span v-if="item.kichCo" class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                            Size {{ item.kichCo }}
+                          </span>
+                          <span v-if="item.thuongHieu" class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
+                            {{ item.thuongHieu }}
+                          </span>
+                        </div>
+                      </div>
+                      <div class="text-right">
+                        <p class="text-sm text-gray-600">SL: {{ item.soLuong }}</p>
+                        <p class="font-medium">{{ formatCurrency(item.giaBan) }}</p>
+                        <p class="text-lg font-bold text-primary-600">{{ formatCurrency(item.thanhTien) }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                
+                <!-- Total -->
+                <div class="pt-4 border-t border-gray-200">
+                  <div class="flex justify-between items-center">
+                    <span class="text-lg font-semibold text-gray-900">Tổng cộng:</span>
+                    <span class="text-2xl font-bold text-primary-600">{{ formatCurrency(order.total || order.tongTienSauGiam) }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div v-else class="text-center py-12">
+          <div class="text-gray-400 mb-4">
+            <svg class="w-16 h-16 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"></path>
+            </svg>
+          </div>
+          <h3 class="text-lg font-medium text-gray-800 mb-2">Chưa có đơn hàng nào</h3>
+          <p class="text-gray-600 mb-6">Bạn chưa có đơn hàng nào.</p>
+          <router-link 
+            to="/products"
+            class="bg-primary-500 text-white px-6 py-3 rounded-lg hover:bg-primary-600 transition-colors font-medium"
+          >
+            Mua sắm ngay
+          </router-link>
+        </div>
+      </div>
+
+      <!-- Guest User: Search Section -->
+      <div v-else class="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 mb-8">
         <form @submit.prevent="searchOrder" class="space-y-6">
           <div>
             <label class="block text-lg font-semibold text-gray-900 mb-4">Mã đơn hàng *</label>
@@ -120,39 +341,99 @@
               <div 
                 v-for="item in searchResult.order.items" 
                 :key="item.id"
-                class="flex items-center space-x-4 p-4 bg-gray-50 rounded-xl"
+                class="flex items-start space-x-4 p-6 bg-white border border-gray-200 rounded-xl hover:shadow-md transition-shadow"
               >
-                <img 
-                  :src="item.image" 
-                  :alt="item.name"
-                  class="w-16 h-16 object-cover rounded-lg"
-                >
-                <div class="flex-1">
-                  <h4 class="font-medium text-gray-900">{{ item.name }}</h4>
-                  <p class="text-sm text-gray-600">{{ item.details }}</p>
-                  <p class="text-sm text-gray-500">Số lượng: {{ item.quantity }}</p>
+                <div class="flex-shrink-0">
+                  <img 
+                    :src="item.image || '/sneakers/sneakers-1-alt1.jpg'" 
+                    :alt="item.name"
+                    class="w-20 h-20 object-cover rounded-lg border border-gray-200"
+                    @error="handleImageError"
+                    @load="handleImageLoad"
+                  >
                 </div>
-                <div class="text-right">
-                  <p class="font-semibold text-gray-900">{{ formatCurrency(item.price) }}</p>
+                <div class="flex-1 min-w-0">
+                  <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                      <h4 class="text-lg font-semibold text-gray-900 mb-1">{{ item.name }}</h4>
+                      <p v-if="item.productCode" class="text-sm text-gray-600 mb-2">Mã: {{ item.productCode }}</p>
+                      
+                      <!-- Product Details -->
+                      <div class="flex flex-wrap gap-2 mb-3">
+                        <span v-if="item.details" class="text-sm text-gray-600">{{ item.details }}</span>
+                      </div>
+                      
+                      <!-- Description -->
+                      <p v-if="item.description" class="text-sm text-gray-500 mb-3 line-clamp-2">{{ item.description }}</p>
+                      
+                      <!-- Note -->
+                      <p v-if="item.note" class="text-sm text-orange-600 mb-3">
+                        <span class="font-medium">Ghi chú:</span> {{ item.note }}
+                      </p>
+                      
+                      <!-- Quantity and Price -->
+                      <div class="flex items-center justify-between">
+                        <div class="text-sm text-gray-600">
+                          <span class="font-medium">Số lượng:</span> {{ item.quantity }}
+                        </div>
+                        <div class="text-right">
+                          <p class="text-sm text-gray-500">{{ formatCurrency(item.price) }} x {{ item.quantity }}</p>
+                          <p class="text-lg font-bold text-primary-600">{{ formatCurrency(item.price * item.quantity) }}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
           <!-- Order Summary -->
-          <div class="bg-gray-50 rounded-xl p-6 space-y-4">
+          <div class="bg-gray-50 rounded-xl p-6 space-y-6">
             <h3 class="text-lg font-semibold text-gray-900">Thông tin đơn hàng</h3>
+            
+            <!-- Customer Info -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <h4 class="font-medium text-gray-900 mb-2">Địa chỉ giao hàng</h4>
-                <p class="text-gray-600 text-sm">{{ searchResult.order.shippingAddress }}</p>
-                <p class="text-gray-600 text-sm">{{ searchResult.order.phoneNumber }}</p>
+                <h4 class="font-medium text-gray-900 mb-3">Thông tin khách hàng</h4>
+                <div class="space-y-2">
+                  <p class="text-gray-600 text-sm"><span class="font-medium">Tên:</span> {{ searchResult.order.customerName }}</p>
+                  <p class="text-gray-600 text-sm"><span class="font-medium">SĐT:</span> {{ searchResult.order.phoneNumber }}</p>
+                  <p v-if="searchResult.order.email" class="text-gray-600 text-sm"><span class="font-medium">Email:</span> {{ searchResult.order.email }}</p>
+                </div>
               </div>
               <div>
-                <h4 class="font-medium text-gray-900 mb-2">Thông tin vận chuyển</h4>
-                <p class="text-gray-600 text-sm">Mã vận đơn: {{ searchResult.order.trackingNumber || 'Chưa có' }}</p>
-                <p class="text-gray-600 text-sm">Tổng tiền: <span class="font-semibold text-gray-900">{{ formatCurrency(searchResult.order.total) }}</span></p>
+                <h4 class="font-medium text-gray-900 mb-3">Địa chỉ giao hàng</h4>
+                <p class="text-gray-600 text-sm">{{ searchResult.order.shippingAddress }}</p>
               </div>
+            </div>
+
+            <!-- Order Details -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 class="font-medium text-gray-900 mb-3">Chi tiết đơn hàng</h4>
+                <div class="space-y-2">
+                  <p class="text-gray-600 text-sm"><span class="font-medium">Loại đơn:</span> {{ searchResult.order.orderType }}</p>
+                  <p v-if="searchResult.order.paymentDate" class="text-gray-600 text-sm"><span class="font-medium">Ngày thanh toán:</span> {{ searchResult.order.paymentDate }}</p>
+                  <p v-if="searchResult.order.trackingNumber" class="text-gray-600 text-sm"><span class="font-medium">Mã vận đơn:</span> {{ searchResult.order.trackingNumber }}</p>
+                  <p v-if="searchResult.order.note" class="text-gray-600 text-sm"><span class="font-medium">Ghi chú:</span> {{ searchResult.order.note }}</p>
+                </div>
+              </div>
+              <div>
+                <h4 class="font-medium text-gray-900 mb-3">Thông tin thanh toán</h4>
+                <div class="space-y-2">
+                  <p class="text-gray-600 text-sm"><span class="font-medium">Tiền sản phẩm:</span> {{ formatCurrency(searchResult.order.productAmount) }}</p>
+                  <p class="text-gray-600 text-sm"><span class="font-medium">Phí vận chuyển:</span> {{ formatCurrency(searchResult.order.shippingFee) }}</p>
+                  <p v-if="searchResult.order.discountCode" class="text-gray-600 text-sm"><span class="font-medium">Mã giảm giá:</span> {{ searchResult.order.discountCode }}</p>
+                  <p class="text-gray-900 text-sm font-semibold"><span class="font-medium">Tổng tiền:</span> {{ formatCurrency(searchResult.order.totalAfterDiscount) }}</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Staff Info (if available) -->
+            <div v-if="searchResult.order.staffName" class="border-t pt-4">
+              <h4 class="font-medium text-gray-900 mb-2">Thông tin nhân viên xử lý</h4>
+              <p class="text-gray-600 text-sm">{{ searchResult.order.staffName }} ({{ searchResult.order.staffCode }})</p>
             </div>
           </div>
         </div>
@@ -209,11 +490,21 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, computed } from 'vue'
+import { customerAPI } from '@/api/customerAPI'
+import authService from '@/services/authService.js'
+import { useToast } from 'vue-toastification'
 
 const orderCode = ref('')
 const isSearching = ref(false)
 const searchResult = ref(null)
+const customerOrders = ref([])
+const loading = ref(false)
+const expandedOrder = ref(null)
+const toast = useToast()
+
+// Check if user is logged in
+const isLoggedIn = computed(() => authService.isAuthenticated())
 
 // Sample order data for demonstration
 const sampleOrders = [
@@ -271,23 +562,225 @@ const sampleOrders = [
   }
 ]
 
+// Load customer orders for logged-in users (same logic as LichSuMuaHang)
+const loadCustomerOrders = async () => {
+  try {
+    loading.value = true
+    
+    // Check authentication
+    if (!authService.isAuthenticated()) {
+      loading.value = false
+      return
+    }
+    
+    const response = await customerAPI.getOrderHistory(0, 50) // Load all orders
+    
+    if (response && response.success && response.data) {
+      // Handle paginated response  
+      let orderData = response.data.data?.content || response.data.content || []
+      
+      // Filter out "Hóa đơn chờ" (status 0)
+      orderData = orderData.filter(order => order.trangThai !== 0)
+      
+      if (Array.isArray(orderData) && orderData.length > 0) {
+        // Process orders with same logic as LichSuMuaHang
+        customerOrders.value = orderData.map(order => {
+          
+          return {
+            id: order.id,
+            ma: order.ma,
+            orderNumber: order.ma,
+            orderDate: order.ngayTao ? new Date(order.ngayTao).toLocaleDateString('vi-VN') : 'N/A',
+            status: order.trangThai,
+            total: order.tongTienSauGiam || order.tongTien || 0,
+            customerName: order.tenKhachHang || 'N/A',
+            tenKhachHang: order.tenKhachHang,
+            shippingAddress: order.diaChiKhachHang || 'N/A',
+            diaChiKhachHang: order.diaChiKhachHang,
+            phoneNumber: order.soDienThoaiKhachHang || 'N/A',
+            soDienThoaiKhachHang: order.soDienThoaiKhachHang,
+            tongTienSauGiam: order.tongTienSauGiam,
+            tongTien: order.tongTien,
+            ngayTao: order.ngayTao,
+            trangThai: order.trangThai,
+            items: order.items || []
+          }
+        })
+        
+        // Sort orders by creation date (newest first)
+        customerOrders.value.sort((a, b) => {
+          const dateA = new Date(a.ngayTao)
+          const dateB = new Date(b.ngayTao)
+          return dateB - dateA // Descending order (newest first)
+        })
+        
+        console.log('Processed customer orders:', customerOrders.value)
+        toast.success(`Đã tải ${customerOrders.value.length} đơn hàng`)
+      } else {
+        customerOrders.value = []
+        console.log('No orders found for customer')
+        toast.info('Bạn chưa có đơn hàng nào')
+      }
+    } else {
+      console.error('Invalid API response structure:', response)
+      customerOrders.value = []
+      toast.error('Không thể tải dữ liệu đơn hàng')
+    }
+  } catch (err) {
+    console.error('Error loading customer orders:', err)
+    toast.error('Không thể tải lịch sử đơn hàng: ' + (err.response?.data?.message || err.message))
+    
+    // Use fallback data if API fails
+    customerOrders.value = sampleOrders
+  } finally {
+    loading.value = false
+  }
+}
+
+// Map backend status to frontend status (keep numeric for consistency)
+const mapBackendStatus = (backendStatus) => {
+  return backendStatus
+}
+
+// Generate timeline based on status
+const generateOrderTimeline = (status) => {
+  const timeline = [
+    { title: 'Đặt hàng thành công', description: 'Đơn hàng đã được tạo', date: new Date().toLocaleDateString('vi-VN'), completed: true }
+  ]
+  
+  if (status >= 2) {
+    timeline.push({ title: 'Xác nhận đơn hàng', description: 'Đơn hàng đã được xác nhận', date: new Date().toLocaleDateString('vi-VN'), completed: true })
+  }
+  
+  if (status >= 3) {
+    timeline.push({ title: 'Đang chuẩn bị hàng', description: 'Sản phẩm đang được đóng gói', date: new Date().toLocaleDateString('vi-VN'), completed: true })
+  }
+  
+  if (status >= 4) {
+    timeline.push({ title: 'Đang vận chuyển', description: 'Đơn hàng đang được giao', date: new Date().toLocaleDateString('vi-VN'), completed: true })
+  }
+  
+  if (status === 5) {
+    timeline.push({ title: 'Giao hàng thành công', description: 'Đơn hàng đã được giao thành công', date: new Date().toLocaleDateString('vi-VN'), completed: true })
+  }
+  
+  return timeline
+}
+
+// Toggle order details expansion with smooth scroll
+const toggleOrderDetails = (orderId) => {
+  if (expandedOrder.value === orderId) {
+    expandedOrder.value = null
+  } else {
+    expandedOrder.value = orderId
+    
+    // Scroll to the order after a short delay to allow DOM update
+    setTimeout(() => {
+      const orderElement = document.getElementById(`order-${orderId}`)
+      if (orderElement) {
+        orderElement.scrollIntoView({ 
+          behavior: 'smooth', 
+          block: 'start',
+          inline: 'nearest'
+        })
+      }
+    }, 100)
+  }
+}
+
+// Search order by code (for guest users)
 const searchOrder = async () => {
   isSearching.value = true
   
-  // Simulate API call
-  await new Promise(resolve => setTimeout(resolve, 1500))
-  
-  const normalizedCode = orderCode.value.trim().toUpperCase()
-  const foundOrder = sampleOrders.find(order => 
-    order.orderNumber.toUpperCase() === normalizedCode
-  )
-  
-  searchResult.value = {
-    found: !!foundOrder,
-    order: foundOrder
+  try {
+    // For guest users, search by order code
+    const response = await customerAPI.searchOrderByCode(orderCode.value.trim())
+    
+    if (response && response.success && response.data) {
+      const order = response.data
+      console.log('Order data received:', order)
+      console.log('Product details:', order.sanPhamChiTietInfos)
+      searchResult.value = {
+        found: true,
+        order: {
+          id: order.id,
+          orderNumber: order.maHoaDon,
+          orderDate: new Date(order.ngayTao).toLocaleDateString('vi-VN'),
+          paymentDate: order.ngayThanhToan ? new Date(order.ngayThanhToan).toLocaleDateString('vi-VN') : null,
+          status: mapBackendStatus(order.trangThai),
+          orderType: order.loaiDon || 'Online',
+          customerName: order.tenKhachHang,
+          phoneNumber: order.soDienThoaiKhachHang || '',
+          email: order.email || '',
+          shippingAddress: order.diaChiKhachHang || 'Chưa có thông tin',
+          note: order.ghiChu || '',
+          productAmount: order.tienSanPham || 0,
+          shippingFee: order.phiVanChuyen || 0,
+          total: order.tongTien || 0,
+          totalAfterDiscount: order.tongTienSauGiam || 0,
+          discountCode: order.maGiamGia || null,
+          staffCode: order.maNhanVien || null,
+          staffName: order.tenNhanVien || null,
+          trackingNumber: order.maVanDon || null,
+          items: order.sanPhamChiTietInfos ? order.sanPhamChiTietInfos.map(item => {
+            const imageUrl = getImageUrl(item.duongDan)
+            console.log('Item duongDan:', item.duongDan, 'Final imageUrl:', imageUrl)
+            return {
+              id: item.hoaDonChiTietId,
+              name: item.tenSanPham || 'Sản phẩm',
+              details: `${item.mauSac ? 'Màu: ' + item.mauSac : ''} ${item.kichCo ? '| Size: ' + item.kichCo : ''} ${item.chatLieu ? '| Chất liệu: ' + item.chatLieu : ''}`.trim(),
+              quantity: item.soLuong,
+              price: item.giaBan,
+              image: imageUrl,
+              productCode: item.maSanPham,
+              note: item.ghiChu,
+              description: item.moTaChiTiet
+            }
+          }) : [{
+            id: 1,
+            name: 'Thông tin sản phẩm đang được cập nhật',
+            details: 'Loại đơn: ' + (order.loaiDon || 'Online'),
+            quantity: 1,
+            price: order.tongTienSauGiam || 0,
+            image: '/sneakers/sneakers-1-alt1.jpg'
+          }],
+          timeline: generateOrderTimeline(order.trangThai)
+        }
+      }
+      toast.success('Tìm thấy đơn hàng thành công!')
+    } else {
+      // Fallback to sample data search
+      const normalizedCode = orderCode.value.trim().toUpperCase()
+      const foundOrder = sampleOrders.find(order => 
+        order.orderNumber.toUpperCase() === normalizedCode
+      )
+      
+      searchResult.value = {
+        found: !!foundOrder,
+        order: foundOrder
+      }
+      
+      if (!foundOrder) {
+        toast.error('Không tìm thấy đơn hàng với mã: ' + orderCode.value.trim())
+      }
+    }
+  } catch (err) {
+    console.error('Error searching order:', err)
+    toast.error('Không tìm thấy đơn hàng với mã: ' + orderCode.value.trim())
+    
+    // Fallback to sample data search
+    const normalizedCode = orderCode.value.trim().toUpperCase()
+    const foundOrder = sampleOrders.find(order => 
+      order.orderNumber.toUpperCase() === normalizedCode
+    )
+    
+    searchResult.value = {
+      found: !!foundOrder,
+      order: foundOrder
+    }
+  } finally {
+    isSearching.value = false
   }
-  
-  isSearching.value = false
 }
 
 const resetSearch = () => {
@@ -295,47 +788,149 @@ const resetSearch = () => {
   searchResult.value = null
 }
 
-const getStatusClass = (status) => {
-  const classes = {
-    'pending': 'bg-warning-100 text-warning-800',
-    'processing': 'bg-primary-100 text-primary-800',
-    'shipping': 'bg-primary-100 text-primary-800',
-    'delivered': 'bg-success-100 text-success-800',
-    'cancelled': 'bg-accent-100 text-accent-800'
+// Check authentication status and load data
+const checkAuthAndLoadData = () => {
+  // Check if user is logged in using authService
+  if (isLoggedIn.value) {
+    console.log('User is logged in, loading customer orders...')
+    loadCustomerOrders()
+  } else {
+    console.log('User not logged in, showing search form...')
   }
-  return classes[status] || 'bg-gray-100 text-gray-800'
+}
+
+// Initialize
+onMounted(() => {
+  checkAuthAndLoadData()
+})
+
+const getStatusClass = (status) => {
+  // Handle both numeric and string status
+  const numericStatus = typeof status === 'number' ? status : parseInt(status)
+  
+  switch (numericStatus) {
+    case 0: return 'bg-gray-100 text-gray-800' // Hóa đơn chờ
+    case 1: return 'bg-yellow-100 text-yellow-800' // Chờ xác nhận
+    case 2: return 'bg-blue-100 text-blue-800' // Chờ xử lý
+    case 3: return 'bg-purple-100 text-purple-800' // Chờ vận chuyển
+    case 4: return 'bg-indigo-100 text-indigo-800' // Đang vận chuyển
+    case 5: return 'bg-green-100 text-green-800' // Đã hoàn thành
+    case 6: return 'bg-red-100 text-red-800' // Đã hủy
+    default:
+      // Fallback for string status
+      const classes = {
+        'pending': 'bg-warning-100 text-warning-800',
+        'processing': 'bg-primary-100 text-primary-800',
+        'shipping': 'bg-primary-100 text-primary-800',
+        'delivered': 'bg-success-100 text-success-800',
+        'cancelled': 'bg-accent-100 text-accent-800'
+      }
+      return classes[status] || 'bg-gray-100 text-gray-800'
+  }
 }
 
 const getStatusDotClass = (status) => {
-  const classes = {
-    'pending': 'bg-warning-500',
-    'processing': 'bg-primary-500',
-    'shipping': 'bg-primary-500',
-    'delivered': 'bg-success-500',
-    'cancelled': 'bg-accent-500'
+  // Handle both numeric and string status
+  const numericStatus = typeof status === 'number' ? status : parseInt(status)
+  
+  switch (numericStatus) {
+    case 0: return 'bg-gray-500' // Hóa đơn chờ
+    case 1: return 'bg-yellow-500' // Chờ xác nhận
+    case 2: return 'bg-blue-500' // Chờ xử lý
+    case 3: return 'bg-purple-500' // Chờ vận chuyển
+    case 4: return 'bg-indigo-500' // Đang vận chuyển
+    case 5: return 'bg-green-500' // Đã hoàn thành
+    case 6: return 'bg-red-500' // Đã hủy
+    default:
+      // Fallback for string status
+      const classes = {
+        'pending': 'bg-warning-500',
+        'processing': 'bg-primary-500',
+        'shipping': 'bg-primary-500',
+        'delivered': 'bg-success-500',
+        'cancelled': 'bg-accent-500'
+      }
+      return classes[status] || 'bg-gray-500'
   }
-  return classes[status] || 'bg-gray-500'
 }
 
 const getStatusText = (status) => {
-  const texts = {
-    'pending': 'Chờ xác nhận',
-    'processing': 'Chờ xử lý', 
-    'shipping': 'Đang vận chuyển',
-    'delivered': 'Đã hoàn thành',
-    'cancelled': 'Đã hủy'
+  // Handle both numeric and string status
+  const numericStatus = typeof status === 'number' ? status : parseInt(status)
+  
+  switch (numericStatus) {
+    case 0: return 'Hóa đơn chờ'
+    case 1: return 'Chờ xác nhận'
+    case 2: return 'Chờ xử lý'
+    case 3: return 'Chờ vận chuyển'
+    case 4: return 'Đang vận chuyển'
+    case 5: return 'Đã hoàn thành'
+    case 6: return 'Đã hủy'
+    default:
+      // Fallback for string status
+      const texts = {
+        'pending': 'Chờ xác nhận',
+        'processing': 'Chờ xử lý', 
+        'shipping': 'Đang vận chuyển',
+        'delivered': 'Đã hoàn thành',
+        'cancelled': 'Đã hủy'
+      }
+      return texts[status] || 'Không xác định'
   }
-  return texts[status] || 'Không xác định'
 }
 
 const formatCurrency = (amount) => {
+  if (!amount) return '0 ₫'
   return new Intl.NumberFormat('vi-VN', {
     style: 'currency',
     currency: 'VND'
   }).format(amount)
 }
+
+const getImageUrl = (imagePath) => {
+  if (!imagePath) {
+    return '/sneakers/sneakers-1-alt1.jpg'
+  }
+  
+  // If it's already a complete URL
+  if (imagePath.startsWith('http')) {
+    return imagePath
+  }
+  
+  // If it starts with /, it's relative to domain
+  if (imagePath.startsWith('/')) {
+    return `http://localhost:8080${imagePath}`
+  }
+  
+  // Otherwise, assume it's a filename and prepend the uploads path
+  return `http://localhost:8080/uploads/${imagePath}`
+}
+
+// Handle image loading events
+const handleImageError = (event) => {
+  console.log('Image failed to load:', event.target.src)
+  event.target.src = '/sneakers/sneakers-1-alt1.jpg'
+}
+
+const handleImageLoad = (event) => {
+  console.log('Image loaded successfully:', event.target.src)
+}
+
 </script>
 
 <style scoped>
-/* Additional styles if needed */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
 </style>

@@ -9,8 +9,57 @@ class AuthService {
 
   async login(credentials) {
     try {
+      // Use customer login endpoint by default (auth-client)
       const response = await AuthAPI.login({
         username: credentials.username, // Use username directly
+        password: credentials.password,
+        rememberMe: credentials.rememberMe
+      });
+
+      if (response.success) {
+        // Map backend response to frontend format
+        const userInfo = {
+          id: response.id,
+          ma: response.ma,
+          username: response.tenDangNhap,
+          email: response.email,
+          soDienThoai: response.soDienThoai,
+          tenQuyen: response.tenQuyen,
+          capQuyenHan: response.capQuyenHan,
+          customerId: response.customerId, // ID khách hàng
+          tenKhachHang: response.tenKhachHang, // Tên khách hàng
+          loginTime: new Date().toISOString()
+        };
+
+        // Store user info and login status
+        localStorage.setItem('user_info', JSON.stringify(userInfo));
+        localStorage.setItem('is_logged_in', 'true');
+        
+        if (credentials.rememberMe) {
+          localStorage.setItem('remember_me', 'true');
+        }
+
+        this.user = userInfo;
+        this.isLoggedIn = true;
+
+        return { success: true, user: userInfo };
+      } else {
+        throw new Error(response.message || 'Đăng nhập thất bại');
+      }
+    } catch (error) {
+      if (error.response && error.response.data && error.response.data.message) {
+        throw new Error(error.response.data.message);
+      } else {
+        throw new Error(error.message || 'Lỗi kết nối đến server');
+      }
+    }
+  }
+
+  // Admin login method for admin panel access
+  async adminLogin(credentials) {
+    try {
+      const response = await AuthAPI.adminLogin({
+        username: credentials.username,
         password: credentials.password,
         rememberMe: credentials.rememberMe
       });
@@ -151,7 +200,30 @@ class AuthService {
   // Get redirect path after login based on user role
   getRedirectPath() {
     // Always redirect to home page after login
-    return '/';
+    return '/home';
+  }
+
+  async register(registerData) {
+    try {
+      const response = await AuthAPI.register({
+        name: registerData.name,
+        email: registerData.email,
+        phoneNumber: registerData.phoneNumber,
+        password: registerData.password
+      });
+
+      if (response.success) {
+        return { success: true, message: response.message };
+      } else {
+        throw new Error(response.message || 'Đăng ký thất bại');
+      }
+    } catch (error) {
+      if (error.response && error.response.data && error.response.data.message) {
+        throw new Error(error.response.data.message);
+      } else {
+        throw new Error(error.message || 'Lỗi kết nối đến server');
+      }
+    }
   }
 }
 
@@ -162,6 +234,7 @@ export default authService;
 // Export individual methods for convenience
 export const {
   login,
+  adminLogin,
   logout,
   isAuthenticated,
   getUser,

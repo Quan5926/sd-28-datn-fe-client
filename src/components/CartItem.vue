@@ -42,6 +42,16 @@ defineProps({
         <span v-if="selectedColor">Màu: {{ selectedColor }}</span>
       </div>
       
+      <!-- Stock warning -->
+      <div v-if="soLuongTonKho <= 5" class="text-xs mt-1">
+        <span v-if="soLuongTonKho === 0" class="text-red-600 font-semibold">
+          ⚠️ Hết hàng
+        </span>
+        <span v-else-if="soLuongTonKho <= 5" class="text-orange-600 font-semibold">
+          ⚠️ Chỉ còn {{ soLuongTonKho }} sản phẩm
+        </span>
+      </div>
+      
       <!-- Giá và nút xóa -->
       <div class="flex justify-between items-center mt-3">
         <!-- Div bọc ngoài để quản lý font-size linh hoạt -->
@@ -71,7 +81,13 @@ defineProps({
           <!-- Button tăng số lượng -->
           <button
             @click="emit('onIncreaseQuantity')"
-            class="p-2 rounded-full text-gray-500 bg-gray-100 hover:bg-gray-200 transition-all duration-200"
+            :disabled="quantity >= soLuongTonKho"
+            :class="[
+              'p-2 rounded-full transition-all duration-200',
+              quantity >= soLuongTonKho 
+                ? 'text-gray-300 bg-gray-50 cursor-not-allowed' 
+                : 'text-gray-500 bg-gray-100 hover:bg-gray-200'
+            ]"
           >
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>

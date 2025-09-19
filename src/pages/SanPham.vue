@@ -454,22 +454,18 @@ const formatPrice = (price) => {
 }
 
 const addToCart = (product) => {
-  if (product.stock > 0 && addToCartAction) {
-    addToCartAction(product)
-    // Show success message or update UI
-    console.log(`Đã thêm ${product.name} vào giỏ hàng`)
+  if (product.stock > 0) {
+    // Chuyển hướng đến trang chi tiết sản phẩm để chọn màu sắc và kích cỡ
+    router.push(`/product/${product.id}?action=add-to-cart`)
+    console.log(`Chuyển đến chi tiết sản phẩm để thêm ${product.name} vào giỏ hàng`)
   }
 }
 
 const buyNow = (product) => {
   if (product.stock > 0) {
-    // Add to cart first if needed
-    if (addToCartAction) {
-      addToCartAction(product)
-    }
-    // Navigate to checkout or cart page
-    router.push('/cart')
-    console.log(`Mua ngay ${product.name}`)
+    // Chuyển hướng đến trang chi tiết sản phẩm để chọn màu sắc và kích cỡ
+    router.push(`/product/${product.id}?action=buy-now`)
+    console.log(`Chuyển đến chi tiết sản phẩm để mua ngay ${product.name}`)
   }
 }
 

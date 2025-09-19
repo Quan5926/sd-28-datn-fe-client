@@ -120,72 +120,173 @@ const scrollToProducts = () => {
 </script>
 
 <template>
-  <section class="relative container mx-auto overflow-hidden rounded-xl banner-container"
-    style="height: calc(100vh - 80px); max-height: 700px; min-height: 500px; width: 81.5%;">
-    <!-- Banner Image -->
-    <div class="absolute inset-0 bg-cover bg-center transition-opacity duration-500"
-      :style="{ backgroundImage: `url(${currentBanner.image})`, opacity: isTransitioning ? 0 : 1 }"></div>
-    <!-- Overlay -->
-    <div class="absolute inset-0 bg-black opacity-50"></div>
-    <!-- Banner Content -->
-    <div
-      class="relative z-10 h-full flex items-center justify-center text-center text-white p-4 max-w-2xl mx-auto banner-text-container">
-      <div class="banner-content">
-        <h2 class="text-4xl md:text-5xl lg:text-6xl font-extrabold mb-4 animate-fade-in-up"
-          v-html="currentBanner.title"></h2>
-        <p class="text-base md:text-xl mb-8 animate-fade-in-up delay-200">
-          {{ currentBanner.description }}
-        </p>
-        <button @click="scrollToProducts"
-          class="border-2 border-primary-400 bg-primary-500 text-white font-semibold py-3 px-8 rounded-full transition-colors duration-300 hover:bg-primary-600 hover:border-primary-600">
-          Mua Ngay
-        </button>
+  <div class="container mx-auto px-4 mt-0 mb-8">
+    <section class="relative overflow-hidden rounded-xl banner-container">
+      <!-- Banner Image -->
+      <div class="absolute inset-0 bg-cover bg-center transition-opacity duration-500"
+        :style="{ backgroundImage: `url(${currentBanner.image})`, opacity: isTransitioning ? 0 : 1 }"></div>
+      <!-- Overlay -->
+      <div class="absolute inset-0 bg-black opacity-50"></div>
+      <!-- Banner Content -->
+      <div class="relative z-10 h-full flex items-center text-white">
+        <div class="w-full px-4 sm:px-6 lg:px-8">
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center min-h-full">
+          <!-- Left Content -->
+          <div class="banner-content text-center lg:text-left order-2 lg:order-1">
+            <h2 class="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold mb-4 sm:mb-6 animate-fade-in-up leading-tight"
+              v-html="currentBanner.title"></h2>
+            <p class="text-sm sm:text-base md:text-lg lg:text-xl mb-6 sm:mb-8 animate-fade-in-up delay-200 leading-relaxed opacity-90">
+              {{ currentBanner.description }}
+            </p>
+            <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+              <button @click="scrollToProducts"
+                class="bg-primary-500 hover:bg-primary-600 text-white font-semibold py-3 px-8 md:py-4 md:px-10 rounded-full transition-all duration-300 transform hover:scale-105 shadow-lg text-sm sm:text-base md:text-lg">
+                Mua Ngay
+              </button>
+              <button @click="scrollToCollection('GIÀY THỂ THAO')"
+                class="border-2 border-white text-white hover:bg-white hover:text-gray-900 font-semibold py-3 px-8 md:py-4 md:px-10 rounded-full transition-all duration-300 text-sm sm:text-base md:text-lg">
+                Khám Phá
+              </button>
+            </div>
+          </div>
+          
+          <!-- Right Content - Visual Element -->
+          <div class="order-1 lg:order-2 flex justify-center lg:justify-end">
+            <div class="relative">
+              <!-- Decorative elements for visual balance -->
+              <div class="absolute -top-4 -right-4 w-24 h-24 bg-primary-500 rounded-full opacity-20 animate-pulse"></div>
+              <div class="absolute -bottom-6 -left-6 w-16 h-16 bg-white rounded-full opacity-10"></div>
+              
+              <!-- Brand highlight -->
+              <div class="bg-white bg-opacity-10 backdrop-blur-sm rounded-2xl p-6 sm:p-8 border border-white border-opacity-20">
+                <div class="text-center">
+                  <div class="text-4xl sm:text-5xl md:text-6xl font-bold mb-2 text-primary-300">
+                    PHOSTEP
+                  </div>
+                  <div class="text-sm sm:text-base text-white opacity-80 font-medium">
+                    Nơi những bước chân bắt đầu
+                  </div>
+                  <div class="mt-4 flex justify-center space-x-2">
+                    <div class="w-2 h-2 bg-primary-400 rounded-full animate-bounce"></div>
+                    <div class="w-2 h-2 bg-primary-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                    <div class="w-2 h-2 bg-primary-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          </div>
+        </div>
       </div>
-    </div>
-    <!-- Navigation Arrows -->
-    <button @click="prevBanner"
-      class="absolute left-4 top-1/2 -translate-y-1/2 p-2 bg-white bg-opacity-30 hover:bg-opacity-50 transition-colors duration-300 rounded-full z-20">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24"
-        stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
-      </svg>
-    </button>
-    <button @click="nextBanner"
-      class="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-white bg-opacity-30 hover:bg-opacity-50 transition-colors duration-300 rounded-full z-20">
-      <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24"
-        stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
-      </svg>
-    </button>
-    <!-- Navigation Dots -->
-    <div class="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
-      <span v-for="(banner, index) in banners" :key="index" @click="goToBanner(index)" :class="[
-        'h-3 w-3 rounded-full cursor-pointer transition-colors duration-300',
-        index === currentBannerIndex
-          ? 'bg-white'
-          : 'bg-gray-400 bg-opacity-50 hover:bg-opacity-70'
-      ]">
-      </span>
-    </div>
-  </section>
+      <!-- Navigation Arrows -->
+      <button @click="prevBanner"
+        class="absolute left-2 sm:left-4 top-1/2 -translate-y-1/2 p-1.5 sm:p-2 bg-white bg-opacity-30 hover:bg-opacity-50 transition-colors duration-300 rounded-full z-20">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 sm:h-8 sm:w-8 text-white" fill="none" viewBox="0 0 24 24"
+          stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+      <button @click="nextBanner"
+        class="absolute right-2 sm:right-4 top-1/2 -translate-y-1/2 p-1.5 sm:p-2 bg-white bg-opacity-30 hover:bg-opacity-50 transition-colors duration-300 rounded-full z-20">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 sm:h-8 sm:w-8 text-white" fill="none" viewBox="0 0 24 24"
+          stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" />
+        </svg>
+      </button>
+      <!-- Navigation Dots -->
+      <div class="absolute bottom-4 sm:bottom-6 left-1/2 -translate-x-1/2 flex gap-2 z-20">
+        <span v-for="(banner, index) in banners" :key="index" @click="goToBanner(index)" :class="[
+          'h-2.5 w-2.5 sm:h-3 sm:w-3 rounded-full cursor-pointer transition-colors duration-300',
+          index === currentBannerIndex
+            ? 'bg-white'
+            : 'bg-gray-400 bg-opacity-50 hover:bg-opacity-70'
+        ]">
+        </span>
+      </div>
+    </section>
+  </div>
 
   <!-- Collection Section -->
-  <section class="container mx-auto px-4 my-12">
-    <div class="grid md:grid-cols-3 gap-6">
-      <div v-for="(collection, index) in collections" :key="index" :style="{ backgroundColor: collection.bgColor }"
-        class="relative rounded-lg overflow-hidden group p-8 flex flex-col items-center text-center">
-        <h3 class="text-2xl font-bold mb-4 banner-text-container">{{ collection.title }}</h3>
-        <img :src="collection.image" :alt="collection.title"
-          class="mx-auto w-full max-w-xs object-contain transition-transform duration-300 transform group-hover:scale-105 my-auto" />
-        <!-- Cập nhật CTA để gọi hàm scrollToCollection và truyền title -->
-        <a href="#" @click.prevent="scrollToCollection(collection.title)"
-          class="border-2 border-primary-500 text-primary-700 font-semibold py-3 px-8 rounded-full hover:bg-primary-500 hover:text-white transition-colors duration-300 flex items-center gap-2 mt-4">
-          Khám phá tất cả
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-          </svg>
-        </a>
+  <section class="container mx-auto px-4 my-16">
+    <!-- Section Header -->
+    <div class="text-center mb-12">
+      <h2 class="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-4 banner-text-container">
+        Bộ Sưu Tập Nổi Bật
+      </h2>
+      <p class="text-lg text-gray-600 max-w-2xl mx-auto leading-relaxed">
+        Khám phá những dòng sản phẩm đặc biệt được thiết kế dành riêng cho phong cách của bạn
+      </p>
+      <div class="w-24 h-1 bg-primary-500 mx-auto mt-6 rounded-full"></div>
+    </div>
+
+    <!-- Collection Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div v-for="(collection, index) in collections" :key="index" 
+        class="relative group cursor-pointer transform transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl">
+        
+        <!-- Collection Card -->
+        <div class="relative rounded-2xl overflow-hidden shadow-lg" :style="{ backgroundColor: collection.bgColor }">
+          <!-- Background Pattern -->
+          <div class="absolute inset-0 opacity-10">
+            <div class="absolute top-0 right-0 w-32 h-32 bg-white rounded-full transform translate-x-16 -translate-y-16"></div>
+            <div class="absolute bottom-0 left-0 w-24 h-24 bg-white rounded-full transform -translate-x-12 translate-y-12"></div>
+          </div>
+          
+          <!-- Content -->
+          <div class="relative z-10 p-8 lg:p-10 flex flex-col items-center text-center min-h-[400px]">
+            <!-- Title -->
+            <div class="mb-6">
+              <h3 class="text-2xl lg:text-3xl font-bold text-gray-800 mb-2 banner-text-container">
+                {{ collection.title }}
+              </h3>
+              <div class="w-16 h-0.5 bg-gray-700 mx-auto"></div>
+            </div>
+            
+            <!-- Image Container -->
+            <div class="flex-1 flex items-center justify-center mb-6 w-full">
+              <div class="relative">
+                <img :src="collection.image" :alt="collection.title"
+                  class="w-full max-w-[280px] h-auto object-contain transition-all duration-500 transform group-hover:scale-110 group-hover:rotate-3" />
+                
+                <!-- Floating Elements -->
+                <div class="absolute -top-2 -right-2 w-6 h-6 bg-primary-500 rounded-full opacity-70 animate-bounce" style="animation-delay: 0s"></div>
+                <div class="absolute -bottom-3 -left-3 w-4 h-4 bg-primary-400 rounded-full opacity-60 animate-bounce" style="animation-delay: 0.3s"></div>
+              </div>
+            </div>
+            
+            <!-- CTA Button -->
+            <div class="mt-auto">
+              <a href="#" @click.prevent="scrollToCollection(collection.title)"
+                class="inline-flex items-center gap-3 bg-gray-800 text-white font-semibold py-4 px-8 rounded-full hover:bg-gray-900 transition-all duration-300 transform hover:scale-105 shadow-lg group-hover:shadow-xl">
+                <span>Khám phá ngay</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 transition-transform duration-300 group-hover:translate-x-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </a>
+            </div>
+          </div>
+          
+          <!-- Hover Overlay -->
+          <div class="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+        </div>
+        
+        <!-- Collection Number -->
+        <div class="absolute -top-4 -left-4 w-12 h-12 bg-primary-500 text-white font-bold text-xl rounded-full flex items-center justify-center shadow-lg z-20">
+          {{ String(index + 1).padStart(2, '0') }}
+        </div>
       </div>
+    </div>
+    
+    <!-- Bottom CTA -->
+    <div class="text-center mt-16">
+      <p class="text-gray-600 mb-6 text-lg">Không tìm thấy phong cách phù hợp?</p>
+      <button @click="scrollToProducts"
+        class="inline-flex items-center gap-3 border-2 border-primary-500 text-primary-600 hover:bg-primary-500 hover:text-white font-semibold py-4 px-10 rounded-full transition-all duration-300 transform hover:scale-105">
+        <span>Xem tất cả sản phẩm</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+        </svg>
+      </button>
     </div>
   </section>
   <!-- End Collection Section -->
@@ -249,5 +350,33 @@ h2 {
   margin-right: auto;
   padding-left: 1rem;
   padding-right: 1rem;
+  height: calc(100vh - 80px);
+  max-height: 700px;
+  min-height: 400px;
+}
+
+/* Responsive height adjustments */
+@media (max-width: 640px) {
+  .banner-container {
+    height: calc(100vh - 60px);
+    min-height: 350px;
+    max-height: 500px;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 1024px) {
+  .banner-container {
+    height: calc(100vh - 70px);
+    min-height: 400px;
+    max-height: 600px;
+  }
+}
+
+@media (min-width: 1025px) {
+  .banner-container {
+    height: calc(100vh - 80px);
+    min-height: 500px;
+    max-height: 700px;
+  }
 }
 </style>

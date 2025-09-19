@@ -40,6 +40,8 @@ export default {
           700: '#b91c1c',
           800: '#991b1b',
           900: '#7f1d1d',
+          DEFAULT: '#ef4444',  // Default accent color
+          dark: '#dc2626',     // accent-dark class
         },
         success: {
           50: '#f0fdf4',

@@ -63,13 +63,13 @@
           </div>
 
           <!-- Color Selection -->
-          <div>
+          <div class="color-selection">
             <h3 class="text-lg font-semibold mb-3">Chọn màu sắc</h3>
             <div class="flex flex-wrap gap-3">
               <button
                 v-for="(color, index) in product.colors"
                 :key="index"
-                @click="selectedColor = color"
+                @click="selectColor(color)"
                 :class="[
                   'w-12 h-12 rounded-full border-4 transition-all relative',
                   selectedColor === color
@@ -107,7 +107,7 @@
               <button
                 v-for="size in availableSizesForColor"
                 :key="size.size"
-                @click="selectedSize = size"
+                @click="selectSize(size)"
                 :disabled="size.stock === 0"
                 :class="[
                   'py-3 px-4 border rounded-lg font-medium transition-all',
@@ -133,7 +133,7 @@
               :disabled="!selectedColor || !selectedSize || selectedSize.stock === 0"
               class="w-full bg-black text-white py-4 px-8 rounded-full font-semibold text-lg hover:bg-gray-800 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
             >
-              {{ !selectedColor ? 'Chọn màu sắc' : !selectedSize ? 'Chọn kích cỡ' : selectedSize.stock === 0 ? 'Hết hàng' : 'Thêm vào giỏ hàng' }}
+              {{ addToCartButtonText }}
             </button>
             
             <button
@@ -179,13 +179,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, inject } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useToast } from 'vue-toastification'
 import { productAPI, mapBackendToFrontend } from '../services/productAPI.js'
+import { cartService } from '../services/cartAPI.js'
+import { useStockUpdates } from '@/composables/useStockUpdates'
 
 const route = useRoute()
 const router = useRouter()
-const { addToCart: addToCartAction } = inject('cartActions', {})
+const toast = useToast()
+const { watchStock, getStock } = useStockUpdates()
 
 const selectedImage = ref('')
 const selectedSize = ref(null)
@@ -209,24 +213,39 @@ const product = ref({
 // Product details from API
 const productDetails = ref([])
 
+// Computed property for button text based on action
+const addToCartButtonText = computed(() => {
+  const action = route.query.action
+  const baseText = action === 'buy-now' ? 'Mua ngay' : 'Thêm vào giỏ hàng'
+  
+  if (!selectedColor.value) return 'Chọn màu sắc'
+  if (!selectedSize.value) return 'Chọn kích cỡ'
+  if (selectedSize.value.stock === 0) return 'Hết hàng'
+  return baseText
+})
+
 // Computed property to show only sizes available for selected color
 const availableSizesForColor = computed(() => {
-  if (!selectedColor.value || !product.value.variants) {
+  if (!selectedColor.value || !productDetails.value.length) {
     return product.value.sizes || []
   }
   
-  // Filter variants that match the selected color
-  const colorVariants = product.value.variants.filter(variant => 
-    variant.colorId === selectedColor.value.id
-  )
+  // Filter product details that match the selected color
+  const colorDetails = productDetails.value.filter(detail => {
+    const mappedDetail = mapBackendToFrontend.productDetail(detail)
+    return mappedDetail.colorId === selectedColor.value.id
+  })
   
-  // Create size objects with stock and price from matching variants
-  const sizesForColor = colorVariants.map(variant => ({
-    size: variant.size,
-    sizeId: variant.sizeId,
-    stock: variant.stock,
-    price: variant.price
-  }))
+  // Create size objects with stock and price from matching details
+  const sizesForColor = colorDetails.map(detail => {
+    const mappedDetail = mapBackendToFrontend.productDetail(detail)
+    return {
+      size: mappedDetail.size,
+      sizeId: mappedDetail.sizeId,
+      stock: mappedDetail.stock,
+      price: mappedDetail.price
+    }
+  })
   
   return sizesForColor
 })
@@ -246,32 +265,136 @@ const formatPrice = (price) => {
   }).format(price)
 }
 
-const addToCart = () => {
+const addToCart = async () => {
   if (selectedColor.value && selectedSize.value && selectedSize.value.stock > 0) {
-    const cartItem = {
-      id: `${product.value.id}-${selectedColor.value.code}-${selectedSize.value.size}`,
-      productId: product.value.id,
-      name: product.value.name,
-      brand: product.value.brand,
-      color: selectedColor.value.name,
-      colorCode: selectedColor.value.code,
-      size: selectedSize.value.size,
-      price: selectedSize.value.price,
-      image: product.value.images[0],
-      quantity: 1
+    try {
+      loading.value = true
+      
+      // Find the exact product detail ID from productDetails array
+      console.log('Searching for product detail with:', {
+        selectedColorId: selectedColor.value.id,
+        selectedSizeId: selectedSize.value.sizeId,
+        availableDetails: productDetails.value.map(detail => {
+          const mapped = mapBackendToFrontend.productDetail(detail)
+          return {
+            id: mapped.id,
+            colorId: mapped.colorId,
+            sizeId: mapped.sizeId,
+            color: mapped.color,
+            size: mapped.size
+          }
+        })
+      })
+      
+      const selectedDetail = productDetails.value.find(detail => {
+        const mappedDetail = mapBackendToFrontend.productDetail(detail)
+        return mappedDetail.colorId === selectedColor.value.id && 
+               mappedDetail.sizeId === selectedSize.value.sizeId
+      })
+      
+      if (!selectedDetail) {
+        console.error('Không tìm thấy chi tiết sản phẩm phù hợp')
+        console.error('Available details:', productDetails.value)
+        return
+      }
+      
+      const mappedDetail = mapBackendToFrontend.productDetail(selectedDetail)
+      
+      // Debug: Log the selected detail info
+      console.log('Selected Detail Info:', {
+        selectedColorId: selectedColor.value.id,
+        selectedSizeId: selectedSize.value.sizeId,
+        foundDetailId: mappedDetail.id,
+        detailColor: mappedDetail.color,
+        detailSize: mappedDetail.size,
+        detailPrice: mappedDetail.price,
+        detailStock: mappedDetail.stock
+      })
+      
+      // Add to cart using cartService
+      const cartResult = await cartService.addToCart(
+        mappedDetail.id, // Real database ID
+        1, // quantity
+        mappedDetail.price
+      )
+      
+      console.log('Add to cart result:', cartResult)
+      
+      // Small delay to ensure database commit
+      await new Promise(resolve => setTimeout(resolve, 500))
+      
+      // Xử lý action từ query parameter
+      const action = route.query.action
+      if (action === 'buy-now') {
+        // Nếu là "mua ngay", chuyển thẳng đến checkout
+        toast.success('Đã thêm vào giỏ hàng! Chuyển đến thanh toán...', {
+          position: 'top-center',
+          timeout: 2000,
+          icon: "✅"
+        })
+        setTimeout(() => {
+          router.push('/checkout')
+        }, 1000)
+      } else {
+        // Nếu là "thêm giỏ hàng", chuyển đến trang giỏ hàng
+        toast.success('Đã thêm vào giỏ hàng thành công!', {
+          position: 'top-center',
+          timeout: 2000,
+          icon: "🛒"
+        })
+        setTimeout(() => {
+          router.push('/cart')
+        }, 1000)
+      }
+      
+      console.log('Đã thêm vào giỏ hàng thành công')
+      
+    } catch (error) {
+      console.error('Lỗi khi thêm vào giỏ hàng:', error)
+      toast.error('Có lỗi xảy ra khi thêm vào giỏ hàng. Vui lòng thử lại!', {
+        position: 'top-center',
+        timeout: 3000,
+        icon: "❌"
+      })
+    } finally {
+      loading.value = false
     }
-    
-    if (addToCartAction) {
-      addToCartAction(cartItem)
-    }
-    
-    console.log('Đã thêm vào giỏ hàng:', cartItem)
   }
 }
 
 const toggleFavorite = () => {
   product.value.isFavorite = !product.value.isFavorite
   console.log(`${product.value.isFavorite ? 'Đã thêm' : 'Đã xóa'} khỏi danh sách yêu thích`)
+}
+
+// Handle color selection with debug
+const selectColor = (color) => {
+  selectedColor.value = color
+  selectedSize.value = null // Reset size when color changes
+  
+  console.log('Color selected:', {
+    colorName: color.name,
+    colorId: color.id,
+    colorCode: color.code
+  })
+  
+  // Auto-select first available size for this color
+  const availableSizes = availableSizesForColor.value.filter(size => size.stock > 0)
+  if (availableSizes.length > 0) {
+    selectSize(availableSizes[0])
+  }
+}
+
+// Handle size selection with debug
+const selectSize = (size) => {
+  selectedSize.value = size
+  
+  console.log('Size selected:', {
+    sizeName: size.size,
+    sizeId: size.sizeId,
+    stock: size.stock,
+    price: size.price
+  })
 }
 
 // Load product data from API
@@ -283,6 +406,21 @@ const loadProductData = async () => {
     // Get product details
     const detailsResponse = await productAPI.getProductDetails(productId)
     productDetails.value = detailsResponse
+    
+    // Debug: Log product details from API
+    console.log('Product Details from API:', detailsResponse)
+    console.log('Mapped Product Details:', detailsResponse.map(detail => {
+      const mapped = mapBackendToFrontend.productDetail(detail)
+      return {
+        id: mapped.id,
+        color: mapped.color,
+        colorId: mapped.colorId,
+        size: mapped.size,
+        sizeId: mapped.sizeId,
+        stock: mapped.stock,
+        price: mapped.price
+      }
+    }))
     
     if (detailsResponse && detailsResponse.length > 0) {
       const firstDetail = detailsResponse[0]
@@ -362,6 +500,27 @@ const loadProductData = async () => {
       
       product.value.sizes = Array.from(allSizes.values())
       
+      // Watch stock updates for all product details
+      productDetails.value.forEach(detail => {
+        watchStock(detail.id, (productDetailId, newStock, oldStock) => {
+          console.log(`Stock updated for product detail ${productDetailId}: ${oldStock} -> ${newStock}`)
+          
+          // Update the specific product detail stock
+          const detailIndex = productDetails.value.findIndex(d => d.id === productDetailId)
+          if (detailIndex !== -1) {
+            productDetails.value[detailIndex].soLuongTonKho = newStock
+            
+            // Trigger reactivity by creating new array
+            productDetails.value = [...productDetails.value]
+            
+            // Update selected size stock if it matches
+            if (selectedSize.value && selectedSize.value.sizeId === productDetails.value[detailIndex].idKichCo?.id) {
+              selectedSize.value.stock = newStock
+            }
+          }
+        })
+      })
+      
       // Store variant mapping for color-size selection
       product.value.variants = Array.from(colorSizeVariants.values())
       
@@ -370,17 +529,21 @@ const loadProductData = async () => {
       selectedColor.value = product.value.colors[0]
       
       // Set default size based on selected color's available sizes
-      if (selectedColor.value && product.value.variants) {
-        const colorVariants = product.value.variants.filter(variant => 
-          variant.colorId === selectedColor.value.id && variant.stock > 0
-        )
-        if (colorVariants.length > 0) {
-          selectedSize.value = {
-            size: colorVariants[0].size,
-            sizeId: colorVariants[0].sizeId,
-            stock: colorVariants[0].stock,
-            price: colorVariants[0].price
-          }
+      if (selectedColor.value && productDetails.value.length > 0) {
+        // Find sizes available for the selected color
+        const colorDetails = productDetails.value.filter(detail => {
+          const mappedDetail = mapBackendToFrontend.productDetail(detail)
+          return mappedDetail.colorId === selectedColor.value.id && mappedDetail.stock > 0
+        })
+        
+        if (colorDetails.length > 0) {
+          const firstColorDetail = mapBackendToFrontend.productDetail(colorDetails[0])
+          selectSize({
+            size: firstColorDetail.size,
+            sizeId: firstColorDetail.sizeId,
+            stock: firstColorDetail.stock,
+            price: firstColorDetail.price
+          })
         }
       } else {
         selectedSize.value = product.value.sizes.find(s => s.stock > 0) || product.value.sizes[0]
@@ -408,7 +571,77 @@ const loadProductData = async () => {
   }
 }
 
-onMounted(() => {
-  loadProductData()
+onMounted(async () => {
+  await loadProductData()
+  
+  // Xử lý query parameters từ URL
+  const action = route.query.action
+  if (action === 'add-to-cart' || action === 'buy-now') {
+    // Hiển thị thông báo yêu cầu chọn màu sắc và kích cỡ
+    showActionMessage(action)
+  }
 })
+
+// Hiển thị thông báo yêu cầu chọn thuộc tính
+const showActionMessage = (action) => {
+  const actionText = action === 'add-to-cart' ? 'thêm vào giỏ hàng' : 'mua ngay'
+  
+  // Hiển thị toast notification
+  toast.info(`Vui lòng chọn màu sắc và kích cỡ để ${actionText}`, {
+    position: 'top-center',
+    timeout: 4000,
+    closeOnClick: true,
+    pauseOnFocusLoss: true,
+    pauseOnHover: true,
+    draggable: true,
+    draggablePercent: 0.6,
+    showCloseButtonOnHover: false,
+    hideProgressBar: false,
+    closeButton: "button",
+    icon: "🛍️",
+    rtl: false
+  })
+  
+  // Scroll đến phần chọn màu sắc và kích cỡ
+  setTimeout(() => {
+    const colorSection = document.querySelector('.color-selection')
+    if (colorSection) {
+      colorSection.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      
+      // Thêm hiệu ứng highlight
+      colorSection.classList.add('highlight-selection')
+      setTimeout(() => {
+        colorSection.classList.remove('highlight-selection')
+      }, 3000)
+    }
+  }, 500)
+}
 </script>
+
+<style scoped>
+.highlight-selection {
+  animation: highlight-pulse 3s ease-in-out;
+  border: 2px solid #3b82f6;
+  border-radius: 12px;
+  padding: 16px;
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05));
+}
+
+@keyframes highlight-pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7);
+  }
+  25% {
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 20px rgba(59, 130, 246, 0.1);
+  }
+  75% {
+    box-shadow: 0 0 0 10px rgba(59, 130, 246, 0.3);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0);
+  }
+}
+</style>

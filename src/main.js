@@ -6,7 +6,8 @@ import { autoAnimatePlugin } from '@formkit/auto-animate/vue'
 import App from './App.vue'
 import Toast from 'vue-toastification'
 import "vue-toastification/dist/index.css"
-import axios from 'axios';
+import axios from 'axios'
+import { Icon } from '@iconify/vue';
 
 // Gắn axios vào global properties để có thể sử dụng trong mọi component
 const app = createApp(App)
@@ -16,6 +17,9 @@ const pinia = createPinia()
 app.use(pinia)
 app.use(router)
 app.use(autoAnimatePlugin);
+
+// Register Iconify Icon component globally
+app.component('iconify-icon', Icon);
 // Cài đặt Vue Toastification
 app.use(Toast, {
   position: 'top-right',

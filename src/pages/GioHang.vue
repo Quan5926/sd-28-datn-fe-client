@@ -37,8 +37,8 @@
               <!-- Product Image -->
               <div class="flex-shrink-0">
                 <img
-                  :src="item.image"
-                  :alt="item.name"
+                  :src="item.urlAnhSanPham"
+                  :alt="item.tenSanPham"
                   class="w-24 h-24 object-cover rounded-lg"
                 />
               </div>
@@ -47,12 +47,12 @@
               <div class="flex-1 min-w-0">
                 <div class="flex justify-between items-start">
                   <div>
-                    <p class="text-sm text-blue-600 font-medium">{{ item.brand }}</p>
-                    <h3 class="text-lg font-semibold text-gray-900 truncate">{{ item.name }}</h3>
-                    <p class="text-sm text-gray-600">Kích cỡ: {{ item.size }}</p>
+                    <p class="text-sm text-blue-600 font-medium">{{ item.tenThuongHieu }}</p>
+                    <h3 class="text-lg font-semibold text-gray-900 truncate">{{ item.tenSanPham }}</h3>
+                    <p class="text-sm text-gray-600">{{ item.tenMauSac }} - {{ item.tenKichCo }}</p>
                   </div>
                   <button
-                    @click="removeFromCart(item.id)"
+                    @click="removeItem(item.id)"
                     class="text-gray-400 hover:text-red-500 transition-colors"
                   >
                     <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -65,17 +65,17 @@
                 <div class="flex justify-between items-center mt-4">
                   <div class="flex items-center border rounded-lg">
                     <button
-                      @click="updateQuantity(item.id, item.quantity - 1)"
-                      :disabled="item.quantity <= 1"
+                      @click="updateQuantity(item.id, item.soLuong - 1)"
+                      :disabled="item.soLuong <= 1"
                       class="p-2 hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
                       </svg>
                     </button>
-                    <span class="px-4 py-2 font-medium">{{ item.quantity }}</span>
+                    <span class="px-3 py-1 bg-gray-100 rounded">{{ item.soLuong }}</span>
                     <button
-                      @click="updateQuantity(item.id, item.quantity + 1)"
+                      @click="updateQuantity(item.id, item.soLuong + 1)"
                       class="p-2 hover:bg-gray-100"
                     >
                       <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -84,8 +84,8 @@
                     </button>
                   </div>
                   <div class="text-right">
-                    <p class="text-lg font-bold text-gray-900">{{ formatPrice(item.price * item.quantity) }}</p>
-                    <p class="text-sm text-gray-600">{{ formatPrice(item.price) }} / sản phẩm</p>
+                    <p class="text-lg font-bold text-gray-900">{{ formatCurrency(item.gia * item.soLuong) }}</p>
+                    <p class="text-sm text-gray-600">{{ formatCurrency(item.gia) }} / sản phẩm</p>
                   </div>
                 </div>
               </div>
@@ -101,41 +101,22 @@
             <div class="space-y-3 mb-6">
               <div class="flex justify-between">
                 <span class="text-gray-600">Tạm tính</span>
-                <span class="font-medium">{{ formatPrice(subtotal) }}</span>
+                <span class="font-medium">{{ formatCurrency(subtotal) }}</span>
               </div>
-              <div class="flex justify-between">
-                <span class="text-gray-600">Phí vận chuyển</span>
-                <span class="font-medium">{{ formatPrice(shippingFee) }}</span>
-              </div>
-              <div class="flex justify-between">
+              <div v-if="discount > 0" class="flex justify-between">
                 <span class="text-gray-600">Giảm giá</span>
-                <span class="font-medium text-green-600">-{{ formatPrice(discount) }}</span>
+                <span class="font-medium text-green-600">-{{ formatCurrency(discount) }}</span>
               </div>
               <hr>
               <div class="flex justify-between text-lg font-bold">
                 <span>Tổng cộng</span>
-                <span>{{ formatPrice(total) }}</span>
+                <span>{{ formatCurrency(total) }}</span>
               </div>
+              <p class="text-sm text-gray-500 mt-2">
+                * Phí vận chuyển sẽ được thu bởi đơn vị vận chuyển
+              </p>
             </div>
 
-            <!-- Promo Code -->
-            <div class="mb-6">
-              <label class="block text-sm font-medium text-gray-700 mb-2">Mã giảm giá</label>
-              <div class="flex gap-2">
-                <input
-                  v-model="promoCode"
-                  type="text"
-                  placeholder="Nhập mã giảm giá"
-                  class="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <button
-                  @click="applyPromoCode"
-                  class="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                >
-                  Áp dụng
-                </button>
-              </div>
-            </div>
 
             <!-- Checkout Button -->
             <button
@@ -171,101 +152,55 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useCart } from '@/composables/useCart'
+import { useCheckout } from '@/composables/useCheckout'
+import { useNotification } from '@/composables/useNotification'
 
 const router = useRouter()
-const promoCode = ref('')
+const { cart, itemCount, totalAmount, loading, loadCart, updateQuantity, removeItem, formatCurrency } = useCart()
+const { getCurrentInvoiceId } = useCheckout()
+const { success, error } = useNotification()
 
-// Fake cart data
-const cartItems = ref([
-  {
-    id: '1-42',
-    productId: 1,
-    name: 'Nike Air Max 270 React',
-    brand: 'Nike',
-    size: '42',
-    price: 2890000,
-    quantity: 1,
-    image: '/sneakers/sneakers-1-alt1.jpg'
-  },
-  {
-    id: '2-41',
-    productId: 2,
-    name: 'Adidas Ultraboost 22',
-    brand: 'Adidas',
-    size: '41',
-    price: 3200000,
-    quantity: 2,
-    image: '/sneakers/sneakers-2-alt1.jpg'
-  },
-  {
-    id: '3-43',
-    productId: 3,
-    name: 'Puma RS-X Reinvention',
-    brand: 'Puma',
-    size: '43',
-    price: 2100000,
-    quantity: 1,
-    image: '/sneakers/sneakers-3-alt1.jpg'
-  }
-])
+// Use cart data
+const cartItems = computed(() => cart.value?.items || [])
+const subtotal = computed(() => totalAmount.value || 0)
 
-// Computed properties
-const subtotal = computed(() => {
-  return cartItems.value.reduce((sum, item) => sum + (item.price * item.quantity), 0)
-})
-
-const shippingFee = computed(() => {
-  return subtotal.value >= 1000000 ? 0 : 50000
-})
-
+// Computed properties for discount and total
 const discount = computed(() => {
-  // Apply 10% discount if promo code is applied
-  return promoCode.value === 'PHOSTEP10' ? subtotal.value * 0.1 : 0
+  // No discount applied
+  return 0
 })
 
 const total = computed(() => {
-  return subtotal.value + shippingFee.value - discount.value
+  return subtotal.value - discount.value
 })
 
 // Methods
-const formatPrice = (price) => {
-  return new Intl.NumberFormat('vi-VN', {
-    style: 'currency',
-    currency: 'VND'
-  }).format(price)
-}
-
-const updateQuantity = (itemId, newQuantity) => {
-  if (newQuantity < 1) return
-  
-  const item = cartItems.value.find(item => item.id === itemId)
-  if (item) {
-    item.quantity = newQuantity
-  }
-}
-
-const removeFromCart = (itemId) => {
-  const index = cartItems.value.findIndex(item => item.id === itemId)
-  if (index > -1) {
-    cartItems.value.splice(index, 1)
-  }
-}
-
-const applyPromoCode = () => {
-  if (promoCode.value === 'PHOSTEP10') {
-    alert('Mã giảm giá đã được áp dụng! Giảm 10%')
-  } else if (promoCode.value) {
-    alert('Mã giảm giá không hợp lệ')
-    promoCode.value = ''
-  }
-}
 
 const proceedToCheckout = () => {
+  // Check if cart has items
+  if (!cart.value || !cart.value.items || cart.value.items.length === 0) {
+    error('Giỏ hàng trống, không thể thanh toán!')
+    return
+  }
+
+  // Check if we have a valid invoice ID
+  const invoiceId = getCurrentInvoiceId()
+  if (!invoiceId) {
+    error('Không tìm thấy thông tin giỏ hàng!')
+    return
+  }
+
+  console.log('Proceeding to checkout with invoice ID:', invoiceId)
+  console.log('Cart items:', cart.value.items)
+  
   // Navigate to checkout page
   router.push('/checkout')
 }
 
-onMounted(() => {
-  console.log('Cart loaded with', cartItems.value.length, 'items')
+onMounted(async () => {
+  await loadCart()
+  console.log('GioHang.vue - Cart loaded with', cartItems.value.length, 'items')
+  console.log('GioHang.vue - Cart data:', cart.value)
 })
 </script>

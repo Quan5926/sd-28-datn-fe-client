@@ -9,12 +9,19 @@ export default defineConfig({
   },
   server: {
     port: 3000,
+    open: '/home', // Tự động mở trình duyệt và chuyển đến /home
     proxy: {
       '/api/mokky': {
         target: 'https://a5687b208ca7ac57.mokky.dev',
         changeOrigin: true,
         secure: true,
         rewrite: (path) => path.replace(/^\/api\/mokky/, '')
+      },
+      '/api/viettel-post': {
+        target: 'http://localhost:8080',
+        changeOrigin: true,
+        secure: false,
+        ws: true
       },
       '/api': {
         target: 'http://localhost:8080',

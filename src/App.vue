@@ -3,14 +3,15 @@ import { ref, watch, provide, computed, onMounted } from 'vue';
 import axios from 'axios';
 import { useRouter } from 'vue-router';
 import { useToast } from 'vue-toastification';
+import { useCart } from './composables/useCart.js';
 
 import Header from './components/Header.vue';
-import Drawer from './components/Drawer.vue';
 import Footer from './components/Footer.vue';
 
 // Base URL for the APIs
 const baseURL = 'http://localhost:8080/api';
-const gioHangsUrl = `${baseURL}/gioHangs`;
+const banHangClientUrl = `${baseURL}/ban-hang-client`;
+const gioHangsUrl = `${baseURL}/gioHangs`; // Keep for backward compatibility if needed
 const gioHangChiTietsUrl = `${baseURL}/gioHangChiTiets`;
 const ordersUrl = `${baseURL}/orders`;
 
@@ -19,9 +20,6 @@ const toast = useToast();
 
 // State
 const cart = ref([]);
-const drawerState = ref(false);
-const isCreatingOrder = ref(false);
-const maPhienGioHang = ref(null);
 const isLoading = ref(false);
 
 const router = useRouter();
@@ -50,59 +48,54 @@ const totalPrice = computed(() => {
   return cart.value.reduce((acc, item) => acc + (item.giaBanHienTai * item.soLuong), 0);
 });
 
-// Cart actions
-const openDrawer = () => {
-  drawerState.value = true;
-};
-const closeDrawer = () => {
-  drawerState.value = false;
-};
+// Cart actions - removed drawer functions
 
 // Function to fetch cart details from the API
 const fetchCartDetails = async () => {
-  if (!maPhienGioHang.value) {
+  const savedInvoiceId = localStorage.getItem('currentInvoiceId');
+  if (!savedInvoiceId) {
     cart.value = [];
     return;
   }
   isLoading.value = true;
   try {
-    const res = await axios.get(`${gioHangChiTietsUrl}/by-ma-phien-gio-hang/${maPhienGioHang.value}`);
-    cart.value = res.data.map(item => ({
-      ...item,
-      price: item.giaBanHienTai * item.soLuong,
-      cartItemId: item.id
-    }));
+    const res = await axios.get(`${banHangClientUrl}/gio-hang/${savedInvoiceId}`);
+    if (res.data && res.data.items) {
+      cart.value = res.data.items.map(item => ({
+        id: item.id,
+        maCtsp: item.maSanPham,
+        tenSanPham: item.tenSanPham,
+        tenMauSac: item.tenMauSac,
+        tenKichCo: item.tenKichCo,
+        soLuong: item.soLuong,
+        giaBanHienTai: item.gia,
+        price: item.thanhTien,
+        cartItemId: item.id,
+        urlAnhSanPham: item.urlAnhSanPham
+      }));
+    } else {
+      cart.value = [];
+    }
   } catch (err) {
     console.error('Lỗi khi lấy chi tiết giỏ hàng!', err);
-    toast.error('Không thể tải giỏ hàng. Vui lòng thử lại.');
+    if (err.response?.status !== 404) {
+      toast.error('Không thể tải giỏ hàng. Vui lòng thử lại.');
+    }
     cart.value = [];
   } finally {
     isLoading.value = false;
   }
 };
 
-// Function to generate the next available cart code
-const generateCartCode = async () => {
+// Function to create pending invoice (new API)
+const createPendingInvoice = async () => {
   try {
-    // 1. Fetch all existing cart codes from the backend
-    const response = await axios.get(gioHangsUrl);
-    const existingGioHangs = response.data;
-    
-    // 2. Filter for valid codes and extract the number
-    const validGioHangCodes = existingGioHangs
-      .filter(gh => gh.maPhienGioHang && gh.maPhienGioHang.startsWith('CART') && !isNaN(parseInt(gh.maPhienGioHang.replace('CART', ''))))
-      .map(gh => parseInt(gh.maPhienGioHang.replace('CART', '')));
-
-    // 3. Find the next sequential ID
-    const nextId = validGioHangCodes.length > 0 ? Math.max(...validGioHangCodes) + 1 : 1;
-
-    // 4. Format the new code with leading zeros
-    const newCode = `CART${String(nextId).padStart(3, '0')}`;
-    
-    return newCode;
+    // Use new cart API to create pending invoice
+    const response = await axios.post(`${banHangClientUrl}/hoa-don-cho`);
+    return response.data;
   } catch (err) {
-    console.error('Lỗi khi tạo mã giỏ hàng:', err);
-    toast.error('Không thể tạo mã giỏ hàng. Vui lòng thử lại.');
+    console.error('Lỗi khi tạo hóa đơn chờ:', err);
+    toast.error('Không thể tạo hóa đơn chờ. Vui lòng thử lại.');
     return null;
   }
 };
@@ -111,43 +104,37 @@ const addToCart = async (item) => {
   isLoading.value = true;
 
   try {
-    // 1. Check if a cart ID already exists
-    let savedSessionId = localStorage.getItem('cartSessionId');
+    // 1. Check if invoice ID already exists
+    let savedInvoiceId = localStorage.getItem('currentInvoiceId');
 
-    // 2. If no cart ID exists, generate a new one
-    if (!savedSessionId) {
-      const newCartCode = await generateCartCode();
-      if (!newCartCode) {
+    // 2. If no invoice ID exists, create a new pending invoice
+    if (!savedInvoiceId) {
+      const invoiceData = await createPendingInvoice();
+      if (!invoiceData) {
         isLoading.value = false;
         return;
       }
-      maPhienGioHang.value = newCartCode;
-      localStorage.setItem('cartSessionId', newCartCode);
-      savedSessionId = newCartCode;
-    } else {
-        maPhienGioHang.value = savedSessionId;
+      savedInvoiceId = invoiceData.id;
+      localStorage.setItem('currentInvoiceId', savedInvoiceId);
     }
     
-    // The rest of your code to add the item to the cart remains the same
-    const existingItem = cart.value.find(cartItem => cartItem.maCtsp === item.maCtsp);
-    const newQuantity = existingItem ? existingItem.soLuong + 1 : 1;
-    
-    const gioHangChiTietDTO = {
-      soLuong: newQuantity,
-      maCtsp: item.maCtsp,
-    };
-    
-    const cartToUpdate = {
-      maPhienGioHang: savedSessionId,
-      gioHangChiTiets: [gioHangChiTietDTO],
-      idKhachHang: null
+    // 3. Add item to cart using new API
+    const addToCartRequest = {
+      idChiTietSanPham: item.id, // Use product detail ID
+      soLuong: 1,
+      gia: item.giaBan || item.price
     };
 
-    await axios.post(`${gioHangsUrl}/full`, cartToUpdate);
+    const response = await axios.post(
+      `${banHangClientUrl}/gio-hang/${savedInvoiceId}/them-san-pham`,
+      addToCartRequest
+    );
     
+    // 4. Update local cart state
     await fetchCartDetails();
     
-    openDrawer();
+    // Redirect to cart page instead of opening drawer
+    router.push('/cart');
     toast.success('Sản phẩm đã được thêm vào giỏ hàng!');
   } catch (err) {
     console.error('Lỗi khi thêm sản phẩm vào giỏ hàng!', err);
@@ -160,13 +147,15 @@ const addToCart = async (item) => {
 const removeFromCart = async (item) => {
   isLoading.value = true;
   try {
-    await axios.delete(`${gioHangChiTietsUrl}/${item.id}`);
+    const savedInvoiceId = localStorage.getItem('currentInvoiceId');
+    if (!savedInvoiceId) {
+      throw new Error('Không tìm thấy giỏ hàng');
+    }
+
+    await axios.delete(`${banHangClientUrl}/gio-hang/${savedInvoiceId}/san-pham/${item.cartItemId}`);
     
     await fetchCartDetails();
     
-    if (cart.value.length === 0) {
-        closeDrawer();
-    }
     toast.info('Sản phẩm đã được xóa khỏi giỏ hàng.');
 
   } catch (err) {
@@ -214,95 +203,30 @@ const updateQuantity = async (id, change) => {
   }
 };
 
-const createOrder = async () => {
-  isCreatingOrder.value = true;
-
-  try {
-    const orderPayload = {
-      maPhienGioHang: maPhienGioHang.value,
-      totalAmount: totalPrice.value
-    };
-
-    await axios.post(ordersUrl, orderPayload);
-    
-    clearCart();
-    closeDrawer();
-    router.push('/order-confirmation');
-    toast.success('Đơn hàng của bạn đã được tạo thành công!');
-
-  } catch (error) {
-    console.error('Lỗi khi tạo đơn hàng:', error);
-    toast.error('Không thể tạo đơn hàng. Vui lòng thử lại.');
-  } finally {
-    isCreatingOrder.value = false;
-  }
-};
-
-const clearCart = async () => {
-    try {
-      isLoading.value = true;
-      await axios.delete(`${gioHangsUrl}/${maPhienGioHang.value}`);
-      
-      cart.value = [];
-      localStorage.removeItem('cartSessionId');
-      maPhienGioHang.value = null;
-      toast.info('Giỏ hàng đã được làm trống.');
-
-    } catch (err) {
-      console.error('Lỗi khi xoá giỏ hàng:', err);
-      toast.error('Lỗi khi xoá giỏ hàng. Vui lòng thử lại.');
-    } finally {
-      isLoading.value = false;
-    }
-};
+// Removed createOrder and clearCart functions - not needed for new cart system
 
 // Provide data and actions to child components
 provide('cartActions', {
   cart,
-  closeDrawer,
-  openDrawer,
   addToCart,
   removeFromCart,
   updateQuantity,
   formatCurrency,
-  createOrder,
-  clearCart,
   totalPrice,
-  isCreatingOrder,
   isLoading,
-  maPhienGioHang,
 });
 
 
-// Load session code from localStorage and fetch cart details on startup
+// Load cart on app start
 onMounted(() => {
-  const savedSessionId = localStorage.getItem('cartSessionId');
-  if (savedSessionId) {
-    maPhienGioHang.value = savedSessionId;
+  const savedInvoiceId = localStorage.getItem('currentInvoiceId');
+  if (savedInvoiceId) {
     fetchCartDetails();
-  }
-});
-
-
-// Watch for changes in maPhienGioHang to save it to localStorage
-watch(maPhienGioHang, (newVal) => {
-  if (newVal) {
-    localStorage.setItem('cartSessionId', newVal);
-  } else {
-    localStorage.removeItem('cartSessionId');
   }
 });
 </script>
 
 <template>
-  <!-- Show drawer only for non-auth routes -->
-  <Drawer
-    v-if="drawerState && !isAuthRoute"
-    :total-price="totalPrice"
-    :is-creating-order="isCreatingOrder"
-    :cart="cart"
-  />
-  
   <!-- Conditional layout based on route -->
   <div v-if="isAuthRoute">
     <!-- Auth layout without header/footer -->
@@ -311,10 +235,10 @@ watch(maPhienGioHang, (newVal) => {
   
   <div v-else>
     <!-- Main layout with header/footer -->
-    <Header @open-drawer="openDrawer" :total-price="totalPrice" />
-    <div class="p-8 md:p-12">
+    <Header :total-price="totalPrice" />
+    <main class="pt-0">
       <router-view></router-view>
-    </div>
+    </main>
     <Footer />
   </div>
 </template>

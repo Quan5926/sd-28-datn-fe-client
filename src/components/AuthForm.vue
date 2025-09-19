@@ -391,15 +391,15 @@ const handleSignUp = async () => {
   registerError.value = '';
 
   try {
-    const response = await axios.post('http://a5687b208ca7ac57.mokky.dev/auth', {
+    const result = await authService.register({
       name: signUpForm.value.name,
       email: signUpForm.value.email,
       password: signUpForm.value.password,
       phoneNumber: signUpForm.value.phoneNumber,
     });
     
-    console.log('Sign Up Success:', response.data);
-    success('Đăng ký thành công!');
+    console.log('Sign Up Success:', result);
+    success('Đăng ký thành công! Bạn có thể đăng nhập ngay bây giờ.');
     
     // Switch to login form after successful registration
     showLogin();
@@ -415,11 +415,7 @@ const handleSignUp = async () => {
     
   } catch (error) {
     console.error('Sign Up Error:', error);
-    if (error.response && error.response.status === 409) {
-      registerError.value = 'Email đã tồn tại hoặc thông tin không hợp lệ';
-    } else {
-      registerError.value = 'Đăng ký thất bại! Vui lòng thử lại sau';
-    }
+    registerError.value = error.message || 'Đăng ký thất bại! Vui lòng thử lại sau';
   } finally {
     isLoading.value = false;
   }
@@ -447,7 +443,7 @@ const handleSignIn = async () => {
     
     // Redirect to home page after successful login
     setTimeout(() => {
-      router.push('/');
+      router.push(authService.getRedirectPath());
     }, 1500);
     
   } catch (error) {
@@ -481,11 +477,9 @@ const showMessageBox = (message) => {
   document.body.appendChild(messageBox);
 };
 
-// Add Iconify script for icons
+// Component mounted
 onMounted(() => {
-  const iconifyScript = document.createElement('script');
-  iconifyScript.src = 'https://code.iconify.design/3/3.1.1/iconify.min.js';
-  document.head.appendChild(iconifyScript);
+  // Icons are now handled by @iconify/vue component
 });
 
 </script>

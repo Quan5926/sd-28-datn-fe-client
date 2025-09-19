@@ -5,7 +5,8 @@ defineProps({
   items: Array
 })
 
-const emit = defineEmits(['add-to-cart', 'toggle-favorite', 'buy-now'])
+// Chỉ giữ lại emit cho toggle-favorite vì add-to-cart và buy-now đã chuyển hướng trực tiếp
+const emit = defineEmits(['toggle-favorite'])
 </script>
 
 <template>
@@ -14,9 +15,7 @@ const emit = defineEmits(['add-to-cart', 'toggle-favorite', 'buy-now'])
       v-for="item in items"
       :key="item.id"
       :item="item"
-      @add-to-cart="(item) => emit('add-to-cart', item)"
       @toggle-favorite="(item) => emit('toggle-favorite', item)"
-      @buy-now="(item) => emit('buy-now', item)"
     />
   </div>
 </template>

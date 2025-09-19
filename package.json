@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@formkit/auto-animate": "^0.8.4",
+    "@iconify/vue": "^5.0.0",
     "axios": "^1.6.5",
     "gsap": "^3.13.0",
     "html2pdf.js": "^0.10.3",

@@ -239,11 +239,13 @@ const handleImageError = (event) => {
 }
 
 const handleAddToCart = () => {
-  emit('add-to-cart', props.item)
+  // Chuyển hướng đến trang chi tiết sản phẩm để chọn màu sắc và kích cỡ
+  router.push(`/product/${props.item.id}?action=add-to-cart`)
 }
 
 const handleBuyNow = () => {
-  emit('buy-now', props.item)
+  // Chuyển hướng đến trang chi tiết sản phẩm để chọn màu sắc và kích cỡ
+  router.push(`/product/${props.item.id}?action=buy-now`)
 }
 
 const toggleFavorite = () => {

@@ -288,10 +288,12 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue'
+import { useNotification } from '@/composables/useNotification'
 
 const activeTab = ref('feedback')
 const historyFilter = ref('all')
 const expandedFAQs = ref([])
+const { success, error } = useNotification()
 
 // Feedback Form
 const feedbackForm = reactive({
@@ -399,7 +401,7 @@ const submitFeedback = () => {
   // Switch to history tab
   activeTab.value = 'history'
   
-  alert('Góp ý của bạn đã được gửi thành công! Chúng tôi sẽ phản hồi trong thời gian sớm nhất.')
+  success('Góp ý của bạn đã được gửi thành công! Chúng tôi sẽ phản hồi trong thời gian sớm nhất.')
 }
 
 const getTypeText = (type) => {

@@ -1,4 +1,4 @@
-import { createRouter, createWebHashHistory } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
 import authService from './services/authService.js'
 import TrangChu from './pages/TrangChu.vue'
 import SanPham from './pages/SanPham.vue'
@@ -9,8 +9,8 @@ import HoTro from './pages/HoTro.vue'
 // import ProfilePage from './pages/ProfilePage.vue' // Đảm bảo tên file đúng
 import ProductDetailCard from './components/ProductDetailCard.vue'
 import AuthForm from './components/AuthForm.vue'
-import CheckoutPage from './components/CheckoutPage.vue' // <<< Đã thêm import
-import OrderSuccessPage from './components/OrderSuccessPage.vue'; // Import OrderSuccessPage mới
+import CheckoutPage from './pages/CheckoutPage.vue'
+import OrderSuccessPage from './pages/OrderSuccessPage.vue'
 
 // Account Dashboard imports
 import AccountDashboard from './components/AccountDashboard.vue'
@@ -22,7 +22,9 @@ import ChiTietSanPham from './pages/ChiTietSanPham.vue'
 import GioHang from './pages/GioHang.vue'
 
 const routes = [
-  { path: '/', name: 'home', component: TrangChu },
+  { path: '/', redirect: '/home' },
+  { path: '/home', name: 'home', component: TrangChu },
+  { path: '/trang-chu', redirect: '/home' },
   { path: '/products', name: 'products', component: SanPham },
   { path: '/discounts', name: 'discounts', component: GiamGia },
   { path: '/orders', name: 'orders', component: TraCuuDonHang },
@@ -33,7 +35,6 @@ const routes = [
   { path: '/cart', name: 'cart', component: GioHang },
   { path: '/auth', name: 'auth', component: AuthForm },
   { path: '/checkout', name: 'checkout', component: CheckoutPage }, // <<< Đã thêm route
-  { path: '/order-success/:orderId/:paymentStatus?', component: OrderSuccessPage, name: 'order-success', props: true }, // Route mới cho trang thành công
 
   // Account Dashboard routes (requires authentication)
   {
@@ -51,7 +52,7 @@ const routes = [
 ]
 
 const router = createRouter({
-  history: createWebHashHistory(),
+  history: createWebHistory(),
   routes
 })
 
