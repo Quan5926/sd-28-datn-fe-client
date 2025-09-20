@@ -104,9 +104,17 @@
 
             <!-- Remember Me & Forgot Password -->
             <div class="form-options">
-              <label class="checkbox-wrapper">
-                <input type="checkbox" v-model="signInForm.rememberMe" class="checkbox-input" />
-                <span class="checkbox-label">Ghi nhớ đăng nhập</span>
+              <label class="checkbox-wrapper" for="rememberMe">
+                <input 
+                  type="checkbox" 
+                  v-model="signInForm.rememberMe" 
+                  class="checkbox-input"
+                  id="rememberMe"
+                />
+                <span class="checkbox-label">
+                  <iconify-icon icon="solar:shield-check-bold-duotone" class="checkbox-icon"></iconify-icon>
+                  Ghi nhớ đăng nhập
+                </span>
               </label>
               <a href="#" class="forgot-password" @click.prevent="handleForgotPassword">
                 Quên mật khẩu?
@@ -121,6 +129,17 @@
               :class="{ 'loading': isLoading }"
             >
               {{ isLoading ? 'Đang đăng nhập...' : 'Đăng nhập' }}
+            </button>
+
+            <!-- Shop Now Button -->
+            <button
+              type="button"
+              @click="goToHomePage"
+              class="auth-btn-secondary"
+              :disabled="isLoading"
+            >
+              <iconify-icon icon="solar:bag-smile-bold-duotone"></iconify-icon>
+              Mua ngay không cần đăng nhập
             </button>
 
             <!-- Error Message -->
@@ -252,6 +271,17 @@
               {{ isLoading ? 'Đang đăng ký...' : 'Đăng ký tài khoản' }}
             </button>
 
+            <!-- Shop Now Button -->
+            <button
+              type="button"
+              @click="goToHomePage"
+              class="auth-btn-secondary"
+              :disabled="isLoading"
+            >
+              <iconify-icon icon="solar:bag-smile-bold-duotone"></iconify-icon>
+              Mua ngay không cần đăng ký
+            </button>
+
             <!-- Error Message -->
             <div v-if="registerError" class="auth-error">
               <iconify-icon icon="solar:danger-circle-bold-duotone"></iconify-icon>
@@ -265,7 +295,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, watch } from 'vue';
 import { useRouter } from 'vue-router';
 import authService from '../services/authService.js';
 import { useNotification } from '../composables/useNotification.js';
@@ -463,6 +493,19 @@ const handleForgotPassword = () => {
   
   success('Link khôi phục mật khẩu đã được gửi đến email của bạn');
 };
+
+// Go to home page without login (for guest shopping)
+const goToHomePage = () => {
+  success('Chuyển đến trang chủ để mua sắm!');
+  setTimeout(() => {
+    router.push('/');
+  }, 1000);
+};
+
+// Debug: Log remember me state changes
+watch(() => signInForm.value.rememberMe, (newValue) => {
+  console.log('Remember me changed:', newValue);
+});
 
 // Function to show a custom message box
 const showMessageBox = (message) => {
@@ -787,7 +830,8 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 8px 0;
+  margin: 16px 0;
+  min-height: 40px; /* Ensure minimum height */
 }
 
 .checkbox-wrapper {
@@ -795,6 +839,12 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
   cursor: pointer;
+  padding: 4px 0; /* Add some padding */
+  transition: all 0.2s ease;
+}
+
+.checkbox-wrapper:hover {
+  opacity: 0.8;
 }
 
 .checkbox-input {
@@ -802,12 +852,25 @@ onMounted(() => {
   height: 20px;
   accent-color: #3b82f6;
   cursor: pointer;
+  flex-shrink: 0; /* Prevent shrinking */
+  margin: 0; /* Remove default margin */
+  appearance: auto; /* Ensure native appearance */
+  -webkit-appearance: checkbox; /* Safari compatibility */
+  -moz-appearance: checkbox; /* Firefox compatibility */
 }
 
 .checkbox-label {
   font-size: 0.95rem;
   color: #4a5568;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.checkbox-icon {
+  font-size: 1.1rem;
+  color: #3b82f6;
 }
 
 .forgot-password {
@@ -858,6 +921,43 @@ onMounted(() => {
 
 .auth-btn.loading {
   pointer-events: none;
+}
+
+.auth-btn-secondary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 18px 24px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  border: none;
+  border-radius: 16px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: 8px;
+  box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
+}
+
+.auth-btn-secondary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+}
+
+.auth-btn-secondary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.auth-btn-secondary:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.auth-btn-secondary iconify-icon {
+  font-size: 1.3rem;
 }
 
 .auth-error {
@@ -948,6 +1048,12 @@ onMounted(() => {
     flex-direction: column;
     gap: 16px;
     align-items: flex-start;
+    min-height: auto;
+  }
+  
+  .checkbox-wrapper {
+    width: 100%;
+    justify-content: flex-start;
   }
   
   .form-title {

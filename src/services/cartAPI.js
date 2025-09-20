@@ -76,11 +76,11 @@ export const cartAPI = {
       return response.data
     } catch (error) {
       if (error.response?.status === 404) {
-        console.log('Cart not found (404), returning null')
-        return null // Giỏ hàng trống
+        console.log('Cart not found (404) - this is normal for empty cart')
+        return null // Giỏ hàng trống - không phải lỗi
       }
       console.error('Error fetching cart:', error)
-      throw new Error(error.response?.data || 'Không thể lấy giỏ hàng')
+      throw new Error(error.response?.data || 'Lỗi kết nối khi tải giỏ hàng')
     }
   },
 
@@ -273,7 +273,7 @@ export class CartService {
   async getCart() {
     try {
       if (!this.currentInvoiceId) {
-        console.log('No currentInvoiceId found')
+        console.log('No currentInvoiceId found - cart is empty')
         return null
       }
 
@@ -283,9 +283,20 @@ export class CartService {
       console.log('CartService received cart data:', cart)
       console.log('CartService cart.items:', cart?.items)
       console.log('CartService cart.totalItems:', cart?.totalItems)
+      
+      // If cart is null, it means empty cart (not an error)
+      if (!cart) {
+        console.log('Cart is empty (API returned null)')
+      }
+      
       return cart
     } catch (error) {
-      console.error('Error getting cart:', error)
+      // Only log as error if it's a real API error, not empty cart
+      if (error.message && !error.message.includes('404')) {
+        console.error('Real error getting cart:', error)
+        throw error
+      }
+      console.log('Cart not found (likely empty):', error.message)
       return null
     }
   }
@@ -294,7 +305,7 @@ export class CartService {
   async updateQuantity(cartItemId, quantity) {
     try {
       if (!this.currentInvoiceId) {
-        throw new Error('Không tìm thấy giỏ hàng')
+        throw new Error('Giỏ hàng trống. Vui lòng thêm sản phẩm trước khi cập nhật.')
       }
 
       console.log('Updating quantity:', { invoiceId: this.currentInvoiceId, cartItemId, quantity })
@@ -311,7 +322,7 @@ export class CartService {
   async removeItem(cartItemId) {
     try {
       if (!this.currentInvoiceId) {
-        throw new Error('Không tìm thấy giỏ hàng')
+        throw new Error('Giỏ hàng trống. Không có sản phẩm để xóa.')
       }
 
       console.log('Removing item:', { invoiceId: this.currentInvoiceId, cartItemId })
@@ -346,7 +357,7 @@ export class CartService {
   async processPayment(paymentData) {
     try {
       if (!this.currentInvoiceId) {
-        throw new Error('Không tìm thấy giỏ hàng để thanh toán')
+        throw new Error('Giỏ hàng trống. Vui lòng thêm sản phẩm trước khi thanh toán.')
       }
 
       const result = await cartAPI.processPayment(this.currentInvoiceId, paymentData)

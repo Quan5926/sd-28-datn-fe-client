@@ -207,23 +207,36 @@
 
       <!-- Action Buttons -->
       <div class="flex flex-col sm:flex-row gap-4 justify-center">
+        <!-- Show different buttons based on authentication status -->
         <router-link
+          v-if="isAuthenticated"
           to="/account/purchase-history"
           class="px-8 py-3 bg-accent hover:bg-accent-dark text-white rounded-lg font-medium transition-colors text-center"
         >
           <i class="fas fa-history mr-2"></i>Xem lịch sử đơn hàng
         </router-link>
+        
         <router-link
           to="/products"
           class="px-8 py-3 border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg font-medium transition-colors text-center"
         >
           <i class="fas fa-shopping-bag mr-2"></i>Tiếp tục mua sắm
         </router-link>
+        
         <router-link
           to="/"
-          class="px-8 py-3 border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-lg font-medium transition-colors text-center"
+          class="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors text-center"
         >
           <i class="fas fa-home mr-2"></i>Về trang chủ
+        </router-link>
+        
+        <!-- Guest user option to create account -->
+        <router-link
+          v-if="!isAuthenticated"
+          to="/auth"
+          class="px-8 py-3 border border-blue-600 text-blue-600 hover:bg-blue-50 rounded-lg font-medium transition-colors text-center"
+        >
+          <i class="fas fa-user-plus mr-2"></i>Tạo tài khoản để theo dõi đơn hàng
         </router-link>
       </div>
     </div>
@@ -231,12 +244,14 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, onMounted, computed } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useToast } from 'vue-toastification'
 import { cartAPI } from '../api/cartAPI.js'
+import { customerAPI } from '../api/customerAPI.js'
 
 const route = useRoute()
+const router = useRouter()
 const toast = useToast()
 
 // Props from route query
@@ -247,6 +262,11 @@ const paymentStatus = route.query.status
 // Reactive data
 const loading = ref(true)
 const orderDetails = ref(null)
+
+// Authentication check
+const isAuthenticated = computed(() => {
+  return customerAPI.isAuthenticated()
+})
 
 // Methods
 const formatCurrency = (amount) => {
@@ -316,6 +336,14 @@ onMounted(() => {
     toast.success('Thanh toán thành công!')
   } else if (paymentStatus === 'failed') {
     toast.error('Thanh toán thất bại!')
+  }
+  
+  // Auto redirect guest users to home page after 3 seconds
+  if (!isAuthenticated.value) {
+    setTimeout(() => {
+      toast.info('Chuyển về trang chủ...')
+      router.push('/')
+    }, 3000) // Give time to see order details
   }
 })
 </script>

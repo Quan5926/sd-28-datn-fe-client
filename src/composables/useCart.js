@@ -41,11 +41,19 @@ export function useCart() {
       console.log('useCart cartData.items.length:', cartData?.items?.length)
       
       cartState.cart = cartData
-      // itemCount is now computed from cartState.cart.totalItems
+      
+      // If cartData is null, it means cart is empty (not an error)
+      if (!cartData) {
+        console.log('Cart is empty (null response)')
+      }
       
       return cartData
     } catch (err) {
-      error.value = err.message
+      // Only set error for actual API errors, not empty cart
+      if (err.message && !err.message.includes('Giỏ hàng trống')) {
+        error.value = err.message
+        showError(err.message)
+      }
       console.error('Error loading cart:', err)
       return null
     } finally {

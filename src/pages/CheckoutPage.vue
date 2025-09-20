@@ -511,15 +511,26 @@ const completeOrder = async (orderData) => {
       // Show success message
       toast.success('Đặt hàng thành công!')
       
-      // Redirect to purchase history page
-      router.push({
-        path: '/account/purchase-history',
-        query: {
-          orderId: result.id || result.ma,
-          paymentMethod: orderData.paymentMethod,
-          status: 'success'
-        }
-      })
+      // Check if user is authenticated to decide redirect path
+      const isAuthenticated = customerAPI.isAuthenticated()
+      
+      if (isAuthenticated) {
+        // Authenticated users: Go to purchase history
+        router.push({
+          path: '/account/purchase-history',
+          query: {
+            orderId: result.id || result.ma,
+            paymentMethod: orderData.paymentMethod,
+            status: 'success'
+          }
+        })
+      } else {
+        // Guest users: Auto redirect to home page
+        setTimeout(() => {
+          toast.info('Chuyển về trang chủ...')
+          router.push('/')
+        }, 1500) // Give time for success message to be seen
+      }
       
     }
     
@@ -530,9 +541,22 @@ const completeOrder = async (orderData) => {
       
       toast.success('Đặt hàng thành công! (Demo mode)')
       
-      // Clear cart and redirect to purchase history
+      // Clear cart
       cartActions.clearCart()
-      router.push('/account/purchase-history')
+      
+      // Check authentication for fake data mode
+      const isAuthenticated = fakeDataState.value?.isAuthenticated || false
+      
+      if (isAuthenticated) {
+        // Authenticated users: Go to purchase history
+        router.push('/account/purchase-history')
+      } else {
+        // Guest users: Auto redirect to home page
+        setTimeout(() => {
+          toast.info('Chuyển về trang chủ...')
+          router.push('/')
+        }, 1500)
+      }
     }
     
   } catch (error) {
@@ -606,8 +630,12 @@ onMounted(async () => {
     const invoiceId = getCurrentInvoiceId()
     console.log('Current invoice ID:', invoiceId)
     
-    if (!invoiceId && cartItems.value.length > 0) {
-      toast.error('Không tìm thấy thông tin giỏ hàng. Vui lòng thêm sản phẩm lại.')
+    if (!invoiceId) {
+      if (cartItems.value.length > 0) {
+        toast.error('Có lỗi với phiên giỏ hàng. Vui lòng thêm sản phẩm lại.')
+      } else {
+        toast.info('Giỏ hàng trống. Hãy thêm sản phẩm để tiếp tục.')
+      }
       router.push('/cart')
       return
     }

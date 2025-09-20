@@ -200,7 +200,13 @@ class AuthService {
   // Get redirect path after login based on user role
   getRedirectPath() {
     // Always redirect to home page after login
-    return '/home';
+    return '/';
+  }
+
+  // Get redirect path for guest users after checkout
+  getGuestRedirectPath() {
+    // Guest users go to home page after successful checkout
+    return '/';
   }
 
   async register(registerData) {

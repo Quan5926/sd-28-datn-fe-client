@@ -187,7 +187,8 @@ const proceedToCheckout = () => {
   // Check if we have a valid invoice ID
   const invoiceId = getCurrentInvoiceId()
   if (!invoiceId) {
-    error('Không tìm thấy thông tin giỏ hàng!')
+    // This is normal when cart is empty, don't show error
+    console.log('No invoice ID found - cart is empty')
     return
   }
 

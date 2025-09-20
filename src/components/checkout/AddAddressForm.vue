@@ -94,14 +94,40 @@
         />
       </div>
       <div class="md:col-span-2">
-        <label class="flex items-center gap-2">
-          <input
-            v-model="addressForm.macDinh"
-            type="checkbox"
-            class="w-4 h-4 text-accent border-gray-300 rounded focus:ring-accent"
-          />
-          <span class="text-sm text-gray-700">Đặt làm địa chỉ mặc định</span>
-        </label>
+        <div class="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
+          <div class="relative">
+            <input
+              v-model="addressForm.macDinh"
+              type="checkbox"
+              id="defaultAddressCheckout"
+              class="w-5 h-5 text-accent bg-white border-2 border-gray-300 rounded focus:ring-2 focus:ring-accent focus:border-accent checked:bg-accent checked:border-accent transition-all duration-200"
+            />
+            <div v-if="addressForm.macDinh" class="absolute inset-0 flex items-center justify-center pointer-events-none">
+              <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+              </svg>
+            </div>
+          </div>
+          <div class="flex flex-col">
+            <label for="defaultAddressCheckout" class="text-sm font-semibold text-gray-700 cursor-pointer select-none hover:text-accent transition-colors">
+              Đặt làm địa chỉ mặc định
+            </label>
+            <span class="text-xs text-gray-500 mt-1">
+              {{ addressForm.macDinh ? 'Địa chỉ này sẽ được đặt làm mặc định' : 'Địa chỉ mặc định sẽ được chọn tự động khi đặt hàng' }}
+            </span>
+          </div>
+          <div class="flex items-center">
+            <span v-if="addressForm.macDinh" class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-semibold flex items-center">
+              <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              Mặc định
+            </span>
+            <span v-else class="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-semibold">
+              Thường
+            </span>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -131,7 +157,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useToast } from 'vue-toastification'
 import { customerAPI } from '../../api/customerAPI.js'
 
@@ -276,18 +302,41 @@ const saveAddress = async () => {
   
   saving.value = true
   try {
-    const response = await customerAPI.addAddress(addressForm.value)
+    // Map frontend field names to backend field names
+    const addressPayload = {
+      tenNguoiNhan: addressForm.value.ten, // Backend expects 'tenNguoiNhan' not 'ten'
+      soDienThoai: addressForm.value.soDienThoai,
+      thanhPho: addressForm.value.thanhPho,
+      quan: addressForm.value.quan,
+      phuong: addressForm.value.phuong,
+      diaChiCuThe: addressForm.value.diaChiCuThe,
+      macDinh: addressForm.value.macDinh
+    }
+    
+    console.log('Sending address payload:', addressPayload)
+    const response = await customerAPI.addAddress(addressPayload)
+    toast.success('Đã thêm địa chỉ mới thành công!')
     emit('address-saved', response.data)
   } catch (error) {
     console.error('Error saving address:', error)
-    toast.error('Không thể lưu địa chỉ. Vui lòng thử lại!')
+    if (error.response?.data?.message) {
+      toast.error(error.response.data.message)
+    } else {
+      toast.error('Không thể lưu địa chỉ. Vui lòng thử lại!')
+    }
   } finally {
     saving.value = false
   }
 }
 
+// Debug: Watch checkbox state changes
+watch(() => addressForm.value.macDinh, (newValue) => {
+  console.log('Default address checkbox changed:', newValue)
+})
+
 // Load provinces on mount
 onMounted(() => {
   loadProvinces()
+  console.log('AddAddressForm mounted, initial macDinh value:', addressForm.value.macDinh)
 })
 </script>

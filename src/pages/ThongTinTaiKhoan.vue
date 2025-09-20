@@ -678,19 +678,39 @@
             <!-- Tùy chọn -->
             <div class="bg-gray-50/50 rounded-xl p-6">
               <div class="flex items-center justify-between">
-                <div class="flex items-center">
-                  <input 
-                    v-model="addressForm.macDinh"
-                    type="checkbox" 
-                    id="defaultAddress"
-                    class="w-5 h-5 text-blue-600 border-2 border-gray-300 rounded focus:ring-blue-500 focus:ring-4"
-                  >
-                  <label for="defaultAddress" class="ml-3 text-sm font-semibold text-gray-700">
-                    Đặt làm địa chỉ mặc định
-                  </label>
+                <div class="flex items-center space-x-4">
+                  <div class="relative">
+                    <input 
+                      v-model="isDefaultChecked"
+                      type="checkbox" 
+                      id="defaultAddress"
+                      class="w-5 h-5 text-blue-600 bg-gray-100 border-2 border-gray-300 rounded focus:ring-blue-500 focus:ring-2 checked:bg-blue-600 checked:border-blue-600 transition-all duration-200"
+                    >
+                    <div v-if="isDefaultChecked" class="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <svg class="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                      </svg>
+                    </div>
+                  </div>
+                  <div class="flex flex-col">
+                    <label for="defaultAddress" class="text-sm font-semibold text-gray-700 cursor-pointer select-none hover:text-blue-600 transition-colors">
+                      Đặt làm địa chỉ mặc định
+                    </label>
+                    <span class="text-xs text-gray-500 mt-1">
+                      {{ isDefaultChecked ? 'Địa chỉ này sẽ được đặt làm mặc định' : 'Địa chỉ mặc định sẽ được chọn tự động khi đặt hàng' }}
+                    </span>
+                  </div>
                 </div>
-                <div class="text-xs text-gray-500">
-                  Địa chỉ mặc định sẽ được chọn tự động khi đặt hàng
+                <div class="flex items-center">
+                  <span v-if="isDefaultChecked" class="bg-green-100 text-green-800 px-3 py-1 rounded-full text-xs font-semibold flex items-center">
+                    <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                      <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                    </svg>
+                    Mặc định
+                  </span>
+                  <span v-else class="bg-gray-100 text-gray-600 px-3 py-1 rounded-full text-xs font-semibold">
+                    Thường
+                  </span>
                 </div>
               </div>
             </div>
@@ -805,6 +825,17 @@ const addressForm = reactive({
   phuong: '',
   diaChiCuThe: '',
   macDinh: false
+})
+
+// Debug computed property for checkbox
+const isDefaultChecked = computed({
+  get() {
+    return addressForm.macDinh
+  },
+  set(value) {
+    addressForm.macDinh = value
+    console.log('Checkbox changed:', value)
+  }
 })
 
 // Computed property for current avatar URL
@@ -972,19 +1003,30 @@ const editAddress = (address) => {
 const closeAddressModal = () => {
   showAddAddressModal.value = false
   editingAddress.value = null
-  // Reset form
-  addressForm.tenNguoiNhan = ''
-  addressForm.soDienThoai = ''
-  addressForm.thanhPho = ''
-  addressForm.quan = ''
-  addressForm.phuong = ''
-  addressForm.diaChiCuThe = ''
-  addressForm.macDinh = false
+  // Reset form completely
+  Object.assign(addressForm, {
+    tenNguoiNhan: '',
+    soDienThoai: '',
+    thanhPho: '',
+    quan: '',
+    phuong: '',
+    diaChiCuThe: '',
+    macDinh: false
+  })
+}
+
+// Toggle default address checkbox
+const toggleDefaultAddress = () => {
+  addressForm.macDinh = !addressForm.macDinh
+  console.log('Default address toggled:', addressForm.macDinh)
 }
 
 const saveAddress = async () => {
   try {
     loading.value = true
+    
+    // Debug log form data before saving
+    console.log('Saving address form:', addressForm)
     
     if (editingAddress.value) {
       // Update existing address
