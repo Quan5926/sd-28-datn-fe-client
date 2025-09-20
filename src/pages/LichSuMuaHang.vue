@@ -180,8 +180,24 @@
 
       <!-- Orders List -->
       <div v-else class="space-y-6">
-        <div v-for="order in paginatedOrders" :key="order.id"
-          class="bg-white border border-gray-200 rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group">
+        <div v-for="(order, index) in paginatedOrders" :key="order.id"
+          :class="[
+            'bg-white border rounded-xl shadow-sm hover:shadow-lg transition-all duration-300 overflow-hidden group relative',
+            {
+              // Newest order styling (only for first page and first order)
+              'border-green-300 shadow-lg ring-2 ring-green-100': index === 0 && currentPage === 1 && paginatedOrders.length > 1,
+              'border-gray-200': !(index === 0 && currentPage === 1 && paginatedOrders.length > 1)
+            }
+          ]"
+        >
+          <!-- "Mới nhất" badge for first order on first page -->
+          <div v-if="index === 0 && currentPage === 1 && paginatedOrders.length > 1" 
+               class="absolute top-4 right-4 z-10 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold flex items-center">
+            <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+            </svg>
+            Mới nhất
+          </div>
           <div class="p-6">
             <div class="flex flex-col lg:flex-row lg:justify-between lg:items-start space-y-4 lg:space-y-0 mb-6">
               <div class="flex items-start space-x-4">
@@ -945,30 +961,32 @@ onMounted(() => {
   // Handle VNPay return callback
   handleVNPayReturn()
   
-  // Test API first
-  testAPI()
+  // Check for payment success from redirect
+  const paymentMethod = route.query.payment
+  const paymentStatus = route.query.status
+  const invoiceId = route.query.invoiceId
+  
+  if (paymentMethod && paymentStatus === 'success') {
+    console.log('Payment success detected, will refresh orders after loading...')
+    
+    // Show payment success message
+    setTimeout(() => {
+      if (paymentMethod === 'vnpay') {
+        toast.success('Thanh toán VNPay thành công!')
+      } else if (paymentMethod === 'cod') {
+        toast.success('Đặt hàng COD thành công!')
+      }
+    }, 500)
+    
+    // Auto-refresh orders after initial load to show new order
+    setTimeout(() => {
+      console.log('Auto-refreshing orders after payment success...')
+      refreshOrders()
+    }, 2000) // Delay to ensure order is processed
+  }
   
   // Load order history
   loadOrderHistory()
-  
-  // Check for success message from checkout redirect
-  if (route.query.status === 'success') {
-    const paymentMethod = route.query.paymentMethod
-    const orderId = route.query.orderId
-    
-    if (paymentMethod === 'VNPAY') {
-      toast.success('Thanh toán VNPay thành công! Đơn hàng đã được xác nhận.')
-    } else if (paymentMethod === 'COD') {
-      toast.success('Đặt hàng thành công! Đơn hàng sẽ được giao trong thời gian sớm nhất.')
-    } else {
-      toast.success('Đặt hàng thành công!')
-    }
-    
-    if (orderId) {
-      console.log('New order created:', orderId)
-      // Optionally highlight the new order
-    }
-  }
 })
 
 // Computed properties
@@ -990,21 +1008,48 @@ const filteredOrders = computed(() => {
     filtered = filtered.filter(order => order.status === activeFilter.value)
   }
 
-  // Sort orders using rawDate for accurate sorting
+  // Sort orders with robust date comparison and ID fallback
   filtered.sort((a, b) => {
     switch (sortBy.value) {
       case 'date-desc':
+        // If rawDates are equal, sort by ID (higher ID = newer)
+        if (b.rawDate - a.rawDate === 0) {
+          return (b.id || 0) - (a.id || 0)
+        }
         return b.rawDate - a.rawDate // Newest first
       case 'date-asc':
+        // If rawDates are equal, sort by ID (lower ID = older)
+        if (a.rawDate - b.rawDate === 0) {
+          return (a.id || 0) - (b.id || 0)
+        }
         return a.rawDate - b.rawDate // Oldest first
       case 'amount-desc':
+        // If amounts are equal, sort by date (newest first)
+        if (b.total - a.total === 0) {
+          return b.rawDate - a.rawDate
+        }
         return b.total - a.total
       case 'amount-asc':
+        // If amounts are equal, sort by date (newest first)
+        if (a.total - b.total === 0) {
+          return b.rawDate - a.rawDate
+        }
         return a.total - b.total
       default:
-        return b.rawDate - a.rawDate // Default to newest first
+        // Default to newest first with ID fallback
+        if (b.rawDate - a.rawDate === 0) {
+          return (b.id || 0) - (a.id || 0)
+        }
+        return b.rawDate - a.rawDate
     }
   })
+  
+  console.log('Orders sorted (newest first):', filtered.slice(0, 3).map(o => ({
+    id: o.id,
+    date: o.date,
+    rawDate: o.rawDate,
+    sortBy: sortBy.value
+  })))
 
   return filtered
 })

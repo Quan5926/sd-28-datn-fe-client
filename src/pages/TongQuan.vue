@@ -157,9 +157,21 @@
           <!-- Orders List -->
           <div v-else v-for="(order, index) in recentOrders" :key="order.id" :class="[
             index !== recentOrders.length - 1 ? 'border-b border-gray-100' : '',
-            'transition-all duration-300',
-            { 'bg-gray-50': expandedOrder === order.id }
+            'transition-all duration-300 relative',
+            { 
+              'bg-gray-50': expandedOrder === order.id,
+              // Newest order styling for first order
+              'bg-green-50 border-l-4 border-l-green-500': index === 0 && recentOrders.length > 1
+            }
           ]">
+            <!-- "Mới nhất" badge for first order -->
+            <div v-if="index === 0 && recentOrders.length > 1" 
+                 class="absolute top-4 right-4 z-10 bg-green-500 text-white px-2 py-1 rounded-full text-xs font-semibold flex items-center">
+              <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              Mới nhất
+            </div>
             <div class="p-6">
               <div class="flex items-start justify-between mb-4">
                 <div class="flex items-start space-x-4">
@@ -437,9 +449,13 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
+import { useToast } from 'vue-toastification'
 import { customerAPI } from '@/api/customerAPI'
 import authService from '@/services/authService.js'
 
+const route = useRoute()
+const toast = useToast()
 const loading = ref(false)
 const error = ref('')
 
@@ -567,12 +583,24 @@ const loadRecentOrders = async () => {
       // Filter out "Hóa đơn chờ" (status 0) and only show valid orders
       orders = orders.filter(order => order.trangThai !== 0)
 
-      // Sort by creation date (newest first)
+      // Sort by creation date (newest first) with ID fallback for robust sorting
       orders = orders.sort((a, b) => {
         const dateA = new Date(a.ngayTao)
         const dateB = new Date(b.ngayTao)
+        
+        // If dates are equal, sort by ID (higher ID = newer)
+        if (dateB.getTime() === dateA.getTime()) {
+          return (b.id || 0) - (a.id || 0)
+        }
+        
         return dateB - dateA // Descending order (newest first)
       })
+      
+      console.log('TongQuan: Orders sorted (newest first):', orders.slice(0, 3).map(o => ({
+        id: o.id,
+        ma: o.ma,
+        ngayTao: o.ngayTao
+      })))
 
       // Take only first 3 orders after filtering and sorting
       orders = orders.slice(0, 3)
@@ -648,6 +676,30 @@ const refreshData = async () => {
 
 // Initialize data
 onMounted(() => {
+  // Check for payment success from redirect
+  const paymentMethod = route.query.payment
+  const paymentStatus = route.query.status
+  const invoiceId = route.query.invoiceId
+  
+  if (paymentMethod && paymentStatus === 'success') {
+    console.log('Payment success detected in TongQuan, will refresh data...')
+    
+    // Show payment success message
+    setTimeout(() => {
+      if (paymentMethod === 'vnpay') {
+        toast.success('Thanh toán VNPay thành công!')
+      } else if (paymentMethod === 'cod') {
+        toast.success('Đặt hàng COD thành công!')
+      }
+    }, 500)
+    
+    // Auto-refresh data after initial load to show new order
+    setTimeout(() => {
+      console.log('Auto-refreshing overview data after payment success...')
+      refreshData()
+    }, 2000) // Delay to ensure order is processed
+  }
+  
   refreshData()
 })
 

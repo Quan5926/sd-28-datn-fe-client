@@ -307,7 +307,7 @@ const props = defineProps({
     }
 })
 
-const emit = defineEmits(['update:customerInfo', 'update:selectedAddress', 'next-step', 'prev-step'])
+const emit = defineEmits(['update:customerInfo', 'update:selectedAddress', 'update:customerId', 'next-step', 'prev-step'])
 
 const toast = useToast()
 
@@ -425,10 +425,32 @@ watch(() => props.customerInfo, (newValue) => {
     localCustomerInfo.value = { ...newValue }
 }, { deep: true })
 
-// Load addresses on mount for authenticated users
-onMounted(() => {
+// Load addresses and emit customer ID on mount for authenticated users
+onMounted(async () => {
     if (props.isAuthenticated) {
         loadAddresses()
+        
+        // Get and emit customer ID for voucher system
+        try {
+            const response = await customerAPI.getProfile()
+            console.log('CustomerInfoStep - Full profile response:', response)
+            
+            // Backend returns { success: true, data: profile }
+            const profileData = response.data || response
+            console.log('CustomerInfoStep - Profile data:', profileData)
+            
+            // Try different possible field names for customer ID
+            const customerId = profileData.id || profileData.customerId || profileData.idKhachHang || profileData.khachHangId
+            console.log('CustomerInfoStep - Customer ID from profile:', customerId)
+            
+            if (customerId) {
+                emit('update:customerId', customerId)
+            } else {
+                console.warn('No customer ID found in profile response')
+            }
+        } catch (error) {
+            console.error('Error getting customer ID:', error)
+        }
     }
 })
 </script>

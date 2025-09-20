@@ -1,7 +1,7 @@
 <script setup>
 import { ref, watch, provide, computed, onMounted } from 'vue';
 import axios from 'axios';
-import { useRouter } from 'vue-router';
+import { useRouter, useRoute } from 'vue-router';
 import { useToast } from 'vue-toastification';
 import { useCart } from './composables/useCart.js';
 
@@ -15,7 +15,8 @@ const gioHangsUrl = `${baseURL}/gioHangs`; // Keep for backward compatibility if
 const gioHangChiTietsUrl = `${baseURL}/gioHangChiTiets`;
 const ordersUrl = `${baseURL}/orders`;
 
-// Initialize toast
+// Initialize router and toast
+const route = useRoute();
 const toast = useToast();
 
 // State
@@ -78,10 +79,26 @@ const fetchCartDetails = async () => {
     }
   } catch (err) {
     console.error('Lỗi khi lấy chi tiết giỏ hàng!', err);
-    if (err.response?.status !== 404) {
+    
+    // If cart loading fails with 400 error, it might be because the invoice is no longer a "pending cart"
+    // (e.g., after successful payment). Clear the localStorage to prevent repeated errors.
+    if (err.response?.status === 400) {
+      console.log('Cart invoice may have been completed. Clearing localStorage.');
+      localStorage.removeItem('currentInvoiceId');
+      cart.value = [];
+      
+      // Don't show error toast for completed invoices on success pages
+      const isSuccessPage = (route.path === '/orders' || route.path === '/account/purchase-history') &&
+                           route.query.status === 'success'
+      if (!isSuccessPage) {
+        console.warn('Invoice may be completed, but not on success page. Current path:', route.path)
+      }
+    } else if (err.response?.status !== 404) {
       toast.error('Không thể tải giỏ hàng. Vui lòng thử lại.');
+      cart.value = [];
+    } else {
+      cart.value = [];
     }
-    cart.value = [];
   } finally {
     isLoading.value = false;
   }
@@ -219,9 +236,65 @@ provide('cartActions', {
 
 // Load cart on app start
 onMounted(() => {
+  // Check for payment success BEFORE loading cart
+  const isPaymentSuccessPage = (route.path === '/orders' || route.path === '/account/purchase-history') &&
+                               (route.query.payment === 'vnpay' || route.query.payment === 'cod') &&
+                               route.query.status === 'success'
+  
+  // Also check for any URL containing payment success indicators
+  const urlContainsPaymentSuccess = window.location.href.includes('payment=vnpay') || 
+                                   window.location.href.includes('payment=cod') ||
+                                   window.location.href.includes('status=success')
+  
+  if (isPaymentSuccessPage || urlContainsPaymentSuccess) {
+    console.log('Payment success detected on mount, clearing cart localStorage immediately');
+    console.log('Current URL:', window.location.href);
+    console.log('Route path:', route.path);
+    console.log('Route query:', route.query);
+    
+    localStorage.removeItem('currentInvoiceId');
+    cart.value = [];
+    return; // Don't load cart for payment success pages
+  }
+  
   const savedInvoiceId = localStorage.getItem('currentInvoiceId');
   if (savedInvoiceId) {
+    console.log('Loading cart with invoice ID:', savedInvoiceId);
     fetchCartDetails();
+  }
+});
+
+// Watch for route changes to clear cart after successful payment
+watch(() => route.path, (newPath) => {
+  console.log('Route changed to:', newPath, 'Query:', route.query)
+  
+  // Clear cart when navigating to order success pages after payment
+  if ((newPath === '/orders' || newPath === '/account/purchase-history') && 
+      (route.query.payment === 'vnpay' || route.query.payment === 'cod') && 
+      route.query.status === 'success') {
+    console.log('Payment success detected, clearing cart localStorage');
+    localStorage.removeItem('currentInvoiceId');
+    cart.value = [];
+  }
+});
+
+// Also watch for query changes (for cases where path doesn't change but query does)
+watch(() => route.query, (newQuery) => {
+  if ((route.path === '/orders' || route.path === '/account/purchase-history') && 
+      (newQuery.payment === 'vnpay' || newQuery.payment === 'cod') && 
+      newQuery.status === 'success') {
+    console.log('Payment success detected via query change, clearing cart localStorage');
+    localStorage.removeItem('currentInvoiceId');
+    cart.value = [];
+  }
+});
+
+// Watch for any payment-related query params and clear cart
+watch(() => route.query.payment, (paymentMethod) => {
+  if (paymentMethod && route.query.status === 'success') {
+    console.log('Payment success detected via payment query param, clearing cart localStorage');
+    localStorage.removeItem('currentInvoiceId');
+    cart.value = [];
   }
 });
 </script>

@@ -113,7 +113,14 @@
                 <i class="fas fa-tag text-white"></i>
               </div>
               <div>
-                <h4 class="font-semibold text-gray-900">{{ voucher.tenVoucher }}</h4>
+                <div class="flex items-center gap-2">
+                  <h4 class="font-semibold text-gray-900">{{ voucher.tenVoucher }}</h4>
+                  <!-- Personal voucher badge -->
+                  <span v-if="voucher.isPersonal" 
+                        class="px-2 py-1 bg-purple-100 text-purple-700 text-xs rounded-full font-medium">
+                    <i class="fas fa-crown mr-1"></i>Cá nhân
+                  </span>
+                </div>
                 <p class="text-sm text-gray-600">Mã: {{ voucher.ma }}</p>
                 <div class="flex items-center gap-4 mt-1">
                   <span class="text-sm text-accent font-medium">
@@ -121,6 +128,9 @@
                   </span>
                   <span v-if="voucher.donHangToiThieu" class="text-xs text-gray-500">
                     Đơn tối thiểu: {{ formatCurrency(voucher.donHangToiThieu) }}
+                  </span>
+                  <span v-if="voucher.discountAmount" class="text-xs text-green-600 font-medium">
+                    Tiết kiệm: {{ formatCurrency(voucher.discountAmount) }}
                   </span>
                 </div>
               </div>
@@ -221,17 +231,29 @@ const props = defineProps({
     type: Number,
     default: 0
   },
+  voucherId: {
+    type: Number,
+    default: null
+  },
   totalPrice: {
     type: Number,
     required: true
   },
   fakeVouchers: {
     type: Array,
+    default: () => []
+  },
+  customerId: {
+    type: Number,
     default: null
+  },
+  autoApplyBest: {
+    type: Boolean,
+    default: false
   }
 })
 
-const emit = defineEmits(['update:voucherCode', 'update:discountAmount', 'next-step', 'prev-step'])
+const emit = defineEmits(['update:voucherCode', 'update:discountAmount', 'update:voucherId', 'next-step', 'prev-step'])
 
 const toast = useToast()
 
@@ -265,10 +287,11 @@ const formatDate = (dateString) => {
   return new Date(dateString).toLocaleDateString('vi-VN')
 }
 
-const loadAvailableVouchers = async () => {
+const loadVouchers = async () => {
   loadingVouchers.value = true
+  
   try {
-    // Use fake vouchers if provided
+    // Use fake vouchers if provided (for testing)
     if (props.fakeVouchers) {
       availableVouchers.value = props.fakeVouchers.filter(voucher => {
         return voucher.isActive && 
@@ -277,10 +300,31 @@ const loadAvailableVouchers = async () => {
                props.totalPrice >= (voucher.donHangToiThieu || 0)
       })
     } else {
-      // Try to load from API first
+      // Load from API based on customer login status
       try {
-        const response = await voucherAPI.getAvailableVouchers(null, props.totalPrice)
-        availableVouchers.value = response.data.map(voucher => voucherAPI.formatVoucherData(voucher))
+        // Get customer ID from auth service or props
+        const customerId = props.customerId || getCustomerId()
+        
+        console.log('Loading vouchers for customer:', customerId, 'Order total:', props.totalPrice)
+        
+        const response = await voucherAPI.getAvailableVouchers(customerId, props.totalPrice)
+        
+        if (response.success) {
+          // Format vouchers from backend response
+          availableVouchers.value = response.data.map(voucher => voucherAPI.formatVoucherData(voucher))
+          
+          // Auto-apply best voucher if available and no voucher is currently applied
+          if (response.bestVoucher && !appliedVoucher.value && props.autoApplyBest) {
+            const bestVoucher = voucherAPI.formatVoucherData(response.bestVoucher)
+            selectVoucher(bestVoucher)
+            toast.success(`Đã tự động áp dụng voucher tốt nhất: ${bestVoucher.ma}`)
+          }
+          
+          console.log('Loaded vouchers:', availableVouchers.value)
+          console.log('Best voucher:', response.bestVoucher)
+        } else {
+          throw new Error(response.message || 'Failed to load vouchers')
+        }
       } catch (apiError) {
         console.warn('API not available, using mock data:', apiError)
         // Fallback to mock data if API is not available
@@ -291,8 +335,20 @@ const loadAvailableVouchers = async () => {
   } catch (error) {
     console.error('Error loading vouchers:', error)
     toast.error('Không thể tải danh sách voucher')
+    // Use empty array as fallback
+    availableVouchers.value = []
   } finally {
     loadingVouchers.value = false
+  }
+}
+
+// Helper function to get customer ID from auth service
+const getCustomerId = () => {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}')
+    return user.id || null
+  } catch {
+    return null
   }
 }
 
@@ -306,28 +362,68 @@ const applyVoucher = async () => {
   voucherError.value = ''
 
   try {
+    // Get customer ID for validation
+    const customerId = props.customerId || getCustomerId()
+    
+    console.log('Validating voucher:', localVoucherCode.value, 'for customer:', customerId)
+    
     // Try API validation first
     try {
-      const response = await voucherAPI.validateVoucher(localVoucherCode.value, props.totalPrice)
+      const response = await voucherAPI.validateVoucher(localVoucherCode.value, props.totalPrice, customerId)
+      
       if (response.success) {
-        const voucher = voucherAPI.formatVoucherData(response.data)
-        selectVoucher(voucher)
-        toast.success('Áp dụng mã giảm giá thành công!')
+        console.log('Validation response:', response)
+        
+        // Use voucher data from API response or create from validation result
+        let voucher = response.data || response.voucher
+        
+        // If no voucher object in response, create one from validation data
+        if (!voucher && response.voucherId) {
+          voucher = {
+            id: parseInt(response.voucherId),
+            ma: localVoucherCode.value,
+            tenVoucher: response.message || 'Voucher',
+            discountAmount: response.discountAmount,
+            isPersonal: response.isPersonal || false
+          }
+        }
+        
+        // Ensure voucher ID is a number
+        if (voucher && voucher.id) {
+          voucher.id = parseInt(voucher.id)
+        }
+        
+        console.log('Final voucher object:', voucher)
+        
+        if (voucher) {
+          // Format and select voucher
+          const formattedVoucher = voucherAPI.formatVoucherData(voucher)
+          console.log('Formatted voucher:', formattedVoucher)
+          selectVoucher(formattedVoucher)
+        } else {
+          console.error('No voucher data received from validation')
+          voucherError.value = 'Không thể lấy thông tin voucher'
+          return
+        }
+        
+        // Show success message with personal/public indicator
+        const voucherType = response.isPersonal ? 'voucher cá nhân' : 'voucher'
+        toast.success(`Áp dụng ${voucherType} thành công!`)
         return
       } else {
-        voucherError.value = response.message || 'Mã giảm giá không hợp lệ'
+        voucherError.value = response.message || 'Mã voucher không hợp lệ'
         return
       }
     } catch (apiError) {
       console.warn('API validation failed, using local validation:', apiError)
       
-      // Fallback to local validation
+      // Fallback to local validation with available vouchers
       const voucher = availableVouchers.value.find(v => 
         v.ma.toLowerCase() === localVoucherCode.value.toLowerCase()
       )
 
       if (!voucher) {
-        voucherError.value = 'Mã giảm giá không tồn tại hoặc đã hết hạn'
+        voucherError.value = 'Mã giảm giá không tồn tại hoặc không áp dụng được cho đơn hàng này'
         return
       }
 
@@ -341,16 +437,18 @@ const applyVoucher = async () => {
       selectVoucher(voucher)
       toast.success('Áp dụng mã giảm giá thành công!')
     }
-
   } catch (error) {
     console.error('Error applying voucher:', error)
-    voucherError.value = 'Có lỗi xảy ra khi áp dụng mã giảm giá'
+    voucherError.value = 'Không thể áp dụng mã giảm giá. Vui lòng thử lại!'
   } finally {
     applyingVoucher.value = false
   }
 }
 
 const selectVoucher = (voucher) => {
+  console.log('selectVoucher called with:', voucher)
+  console.log('Voucher ID:', voucher.id, 'Type:', typeof voucher.id)
+  
   appliedVoucher.value = voucher
   localVoucherCode.value = voucher.ma
   
@@ -360,9 +458,22 @@ const selectVoucher = (voucher) => {
   localDiscountAmount.value = discount
   voucherError.value = ''
   
+  // Ensure voucher ID is a number before emitting
+  const voucherId = typeof voucher.id === 'string' ? parseInt(voucher.id) : voucher.id
+  
   // Emit updates
+  console.log('Emitting voucher data:', { 
+    code: voucher.ma, 
+    discount: discount, 
+    id: voucherId, 
+    idType: typeof voucherId,
+    originalId: voucher.id,
+    originalIdType: typeof voucher.id
+  })
+  
   emit('update:voucherCode', voucher.ma)
   emit('update:discountAmount', discount)
+  emit('update:voucherId', voucherId)
 }
 
 const removeVoucher = () => {
@@ -373,6 +484,7 @@ const removeVoucher = () => {
   
   emit('update:voucherCode', '')
   emit('update:discountAmount', 0)
+  emit('update:voucherId', null)
   
   toast.success('Đã hủy mã giảm giá')
 }
@@ -394,8 +506,12 @@ watch(() => props.discountAmount, (newValue) => {
   localDiscountAmount.value = newValue
 })
 
+watch(() => props.voucherId, (newValue) => {
+  console.log('VoucherStep received voucherId prop:', newValue, 'Type:', typeof newValue)
+})
+
 // Load vouchers on mount
 onMounted(() => {
-  loadAvailableVouchers()
+  loadVouchers()
 })
 </script>

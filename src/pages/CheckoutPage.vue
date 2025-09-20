@@ -119,6 +119,7 @@
                   @prev-step="prevStep"
                   @update:customer-info="handleCustomerInfoUpdate"
                   @update:selected-address="handleAddressUpdate"
+                  @update:customer-id="handleCustomerIdUpdate"
                 />
 
                 <!-- Step 2: Voucher/Discount -->
@@ -127,7 +128,9 @@
                   key="step2"
                   v-model:voucher-code="voucherCode"
                   v-model:discount-amount="discountAmount"
+                  v-model:voucher-id="voucherId"
                   :total-price="totalPrice"
+                  :customer-id="customerId"
                   :fake-vouchers="useFakeData && fakeDataState ? fakeDataState.vouchers : null"
                   @next-step="nextStep"
                   @prev-step="prevStep"
@@ -144,6 +147,7 @@
                   :total-price="finalTotalPrice"
                   :discount-amount="discountAmount"
                   :voucher-code="voucherCode"
+                  :voucher-id="voucherId"
                   @prev-step="prevStep"
                   @complete-order="completeOrder"
                 />
@@ -290,6 +294,8 @@ const {
   error, 
   updateCustomerInfo, 
   updatePaymentMethod, 
+  applyVoucher,
+  removeVoucher,
   processCheckout,
   getCurrentInvoiceId 
 } = useCheckout()
@@ -348,8 +354,10 @@ const customerInfo = ref({
 })
 
 const selectedAddress = ref(null)
+const customerId = ref(null)
 const voucherCode = ref('')
 const discountAmount = ref(0)
+const voucherId = ref(null)
 const paymentMethod = ref('')
 const isLoading = ref(false)
 
@@ -438,6 +446,11 @@ const handleAddressUpdate = (address) => {
   selectedAddress.value = address
 }
 
+const handleCustomerIdUpdate = (id) => {
+  console.log('Customer ID updated from Step 1:', id)
+  customerId.value = id
+}
+
 // Step navigation
 const nextStep = () => {
   if (currentStep.value < steps.length) {
@@ -507,6 +520,7 @@ const completeOrder = async (orderData) => {
       const result = await processCheckout()
       
       console.log('Checkout result:', result)
+      console.log('Order code for redirect:', result.maHoaDon || result.ma || result.id)
       
       // Show success message
       toast.success('Đặt hàng thành công!')
@@ -520,15 +534,21 @@ const completeOrder = async (orderData) => {
           path: '/account/purchase-history',
           query: {
             orderId: result.id || result.ma,
-            paymentMethod: orderData.paymentMethod,
+            paymentMethod: paymentMethod.value || 'COD',
             status: 'success'
           }
         })
       } else {
-        // Guest users: Auto redirect to home page
+        // Guest users: Redirect to order lookup with order code
         setTimeout(() => {
-          toast.info('Chuyển về trang chủ...')
-          router.push('/')
+          toast.info('Chuyển đến trang tra cứu đơn hàng...')
+          router.push({
+            path: '/orders',
+            query: {
+              orderCode: result.maHoaDon || result.ma || result.id,
+              autoSearch: 'true'
+            }
+          })
         }, 1500) // Give time for success message to be seen
       }
       
@@ -551,10 +571,16 @@ const completeOrder = async (orderData) => {
         // Authenticated users: Go to purchase history
         router.push('/account/purchase-history')
       } else {
-        // Guest users: Auto redirect to home page
+        // Guest users: Redirect to order lookup with order code
         setTimeout(() => {
-          toast.info('Chuyển về trang chủ...')
-          router.push('/')
+          toast.info('Chuyển đến trang tra cứu đơn hàng...')
+          router.push({
+            path: '/orders',
+            query: {
+              orderCode: fakeDataState.value?.cart?.orderCode || 'DH' + Date.now(),
+              autoSearch: 'true'
+            }
+          })
         }, 1500)
       }
     }
@@ -658,7 +684,44 @@ onMounted(async () => {
   }
 })
 
-// Watch for route changes to reset to step 1
+// Watch for voucher changes to update checkout state
+watch([voucherId, discountAmount], ([newVoucherId, newDiscountAmount]) => {
+  console.log('Voucher changed:', { 
+    voucherId: newVoucherId, 
+    voucherIdType: typeof newVoucherId,
+    discountAmount: newDiscountAmount 
+  })
+  
+  if (newVoucherId && newDiscountAmount > 0) {
+    // Ensure voucher ID is a number
+    let numericVoucherId = newVoucherId
+    
+    if (typeof newVoucherId === 'string') {
+      console.warn('Voucher ID is string, converting to number:', newVoucherId)
+      numericVoucherId = parseInt(newVoucherId)
+    }
+    
+    if (isNaN(numericVoucherId) || numericVoucherId === null || numericVoucherId === undefined) {
+      console.error('Invalid voucher ID:', newVoucherId, 'Converted:', numericVoucherId)
+      removeVoucher()
+      return
+    }
+    
+    // Apply voucher to checkout state with numeric ID
+    applyVoucher(numericVoucherId, newDiscountAmount)
+    console.log('Applied voucher to checkout state:', { 
+      voucherId: checkoutState.voucherId, 
+      voucherIdType: typeof checkoutState.voucherId,
+      discount: checkoutState.discount 
+    })
+  } else {
+    // Remove voucher from checkout state
+    removeVoucher()
+    console.log('Removed voucher from checkout state')
+  }
+})
+
+// Watch for route changes to reset step
 watch(
   () => router.currentRoute.value.path,
   (newPath) => {

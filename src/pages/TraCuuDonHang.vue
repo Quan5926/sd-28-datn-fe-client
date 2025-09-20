@@ -28,14 +28,29 @@
         
         <div v-else-if="customerOrders.length > 0" class="space-y-6">
           <div 
-            v-for="order in customerOrders" 
+            v-for="(order, index) in customerOrders" 
             :key="order.id"
             :id="`order-${order.id}`"
             :class="[
-              'bg-white border border-gray-200 rounded-xl overflow-hidden transition-all duration-200',
-              { 'shadow-lg bg-gray-50': expandedOrder === order.id, 'hover:shadow-lg': expandedOrder !== order.id }
+              'bg-white border rounded-xl overflow-hidden transition-all duration-200 relative',
+              {
+                // Newest order styling
+                'border-green-300 shadow-lg ring-2 ring-green-100': index === 0 && customerOrders.length > 1,
+                'border-gray-200': !(index === 0 && customerOrders.length > 1),
+                // Expanded order styling
+                'shadow-lg bg-gray-50': expandedOrder === order.id,
+                'hover:shadow-lg': expandedOrder !== order.id
+              }
             ]"
           >
+            <!-- "Mới nhất" badge for first order -->
+            <div v-if="index === 0 && customerOrders.length > 1" 
+                 class="absolute top-4 right-4 z-10 bg-green-500 text-white px-3 py-1 rounded-full text-xs font-semibold flex items-center">
+              <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+              </svg>
+              Mới nhất
+            </div>
             <!-- Order Header -->
             <div class="p-6 border-b border-gray-100">
               <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between">
@@ -491,10 +506,12 @@
 
 <script setup>
 import { ref, onMounted, computed } from 'vue'
+import { useRoute } from 'vue-router'
 import { customerAPI } from '@/api/customerAPI'
 import authService from '@/services/authService.js'
 import { useToast } from 'vue-toastification'
 
+const route = useRoute()
 const orderCode = ref('')
 const isSearching = ref(false)
 const searchResult = ref(null)
@@ -607,12 +624,34 @@ const loadCustomerOrders = async () => {
           }
         })
         
-        // Sort orders by creation date (newest first)
+        // Sort orders by creation date (newest first) - multiple fallbacks for date comparison
         customerOrders.value.sort((a, b) => {
-          const dateA = new Date(a.ngayTao)
-          const dateB = new Date(b.ngayTao)
+          // Try multiple date fields for robust sorting
+          const getOrderDate = (order) => {
+            // Priority: ngayTao > ngayThanhToan > orderDate > id (as fallback)
+            if (order.ngayTao) return new Date(order.ngayTao)
+            if (order.ngayThanhToan) return new Date(order.ngayThanhToan)
+            if (order.orderDate) return new Date(order.orderDate)
+            return new Date(0) // Fallback to epoch if no date found
+          }
+          
+          const dateA = getOrderDate(a)
+          const dateB = getOrderDate(b)
+          
+          // If dates are equal, sort by ID (higher ID = newer)
+          if (dateA.getTime() === dateB.getTime()) {
+            return (b.id || 0) - (a.id || 0)
+          }
+          
           return dateB - dateA // Descending order (newest first)
         })
+        
+        console.log('Orders sorted by date (newest first):', customerOrders.value.map(o => ({
+          id: o.id,
+          ma: o.ma,
+          ngayTao: o.ngayTao,
+          orderDate: o.orderDate
+        })))
         
         console.log('Processed customer orders:', customerOrders.value)
         toast.success(`Đã tải ${customerOrders.value.length} đơn hàng`)
@@ -801,6 +840,39 @@ const checkAuthAndLoadData = () => {
 
 // Initialize
 onMounted(() => {
+  // Check for query params from checkout redirect
+  const queryOrderCode = route.query.orderCode
+  const autoSearch = route.query.autoSearch === 'true'
+  const paymentMethod = route.query.payment
+  const paymentStatus = route.query.status
+  
+  if (queryOrderCode) {
+    orderCode.value = queryOrderCode
+    console.log('Auto-filled order code from query:', queryOrderCode)
+    
+    // Show payment success message for VNPay
+    if (paymentMethod === 'vnpay' && paymentStatus === 'success') {
+      setTimeout(() => {
+        toast.success('Thanh toán VNPay thành công!')
+      }, 100)
+    }
+    
+    // Auto search if requested
+    if (autoSearch && !isLoggedIn.value) {
+      setTimeout(() => {
+        searchOrder()
+      }, 500) // Small delay to let UI settle
+    }
+    
+    // If user is logged in and has new order from payment, refresh order list
+    if (isLoggedIn.value && (paymentMethod === 'vnpay' || paymentMethod === 'cod')) {
+      setTimeout(() => {
+        console.log('Refreshing customer orders after payment...')
+        loadCustomerOrders()
+      }, 1000) // Delay to ensure order is processed
+    }
+  }
+  
   checkAuthAndLoadData()
 })
 

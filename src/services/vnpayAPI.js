@@ -74,9 +74,9 @@ export class VNPayService {
       console.log('VNPay using invoice ID:', invoiceId)
 
       console.log('Creating VNPay payment with data:', paymentData)
+      console.log('VoucherId from paymentData:', paymentData.voucherId, 'Type:', typeof paymentData.voucherId)
 
-      // Create VNPay payment URL
-      const result = await vnpayAPI.createPayment(invoiceId, {
+      const vnpayPayload = {
         customerName: paymentData.customerInfo.name,
         phone: paymentData.customerInfo.phone,
         email: paymentData.customerInfo.email,
@@ -85,7 +85,12 @@ export class VNPayService {
         discount: paymentData.discount,
         notes: paymentData.notes,
         voucherId: paymentData.voucherId
-      })
+      }
+      
+      console.log('VNPay payload being sent:', vnpayPayload)
+
+      // Create VNPay payment URL
+      const result = await vnpayAPI.createPayment(invoiceId, vnpayPayload)
 
       if (result.paymentUrl) {
         console.log('Redirecting to VNPay:', result.paymentUrl)

@@ -279,6 +279,10 @@ const props = defineProps({
   voucherCode: {
     type: String,
     default: ''
+  },
+  voucherId: {
+    type: Number,
+    default: null
   }
 })
 
@@ -419,8 +423,10 @@ const handleVNPayPayment = async (orderData) => {
       shippingFee: orderData.shippingFee || 0,
       discount: orderData.discountAmount || 0,
       notes: `Đơn hàng từ ${customerInfo.name} - ${customerInfo.phone}`,
-      voucherId: orderData.voucherCode || null
+      voucherId: props.voucherId || null
     }
+    
+    console.log('VoucherId from props:', props.voucherId, 'Type:', typeof props.voucherId)
     
     console.log('VNPay payment data:', vnpayData)
     

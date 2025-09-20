@@ -17,38 +17,107 @@ const createAPI = () => {
 export const voucherAPI = {
   // Get available vouchers for customer
   getAvailableVouchers: async (customerId = null, orderTotal = 0) => {
-    const api = createAPI()
-    
-    const params = {
-      ...(customerId && { customerId }),
-      orderTotal
+    try {
+      const api = createAPI()
+      
+      let response
+      if (customerId) {
+        // Get personal + public vouchers for logged in users
+        response = await api.get(`/vouchers/personal/${customerId}`, {
+          params: { orderAmount: orderTotal }
+        })
+      } else {
+        // Get public vouchers only for guest users
+        response = await api.get('/vouchers/public', {
+          params: { orderAmount: orderTotal }
+        })
+      }
+      
+      console.log('Voucher API response:', response.data)
+      
+      return {
+        success: true,
+        data: response.data.allVouchers || response.data.vouchers || [],
+        personalVouchers: response.data.personalVouchers || [],
+        publicVouchers: response.data.publicVouchers || [],
+        bestVoucher: response.data.bestVoucher,
+        message: response.data.message
+      }
+    } catch (error) {
+      console.error('Error getting available vouchers:', error)
+      throw error
     }
-    
-    const response = await api.get('/vouchers/available', { params })
-    return response.data
   },
 
   // Validate voucher code
   validateVoucher: async (voucherCode, orderTotal, customerId = null) => {
-    const api = createAPI()
-    
-    const response = await api.post('/vouchers/validate', {
-      ma: voucherCode,
-      tongDonHang: orderTotal,
-      ...(customerId && { idKhachHang: customerId })
-    })
-    return response.data
+    try {
+      const api = createAPI()
+      
+      const params = new URLSearchParams({
+        code: voucherCode,
+        orderAmount: orderTotal
+      })
+      
+      if (customerId) {
+        params.append('customerId', customerId)
+      }
+      
+      const response = await api.post('/vouchers/validate', params, {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
+      })
+      
+      console.log('Voucher validation API response:', response.data)
+      
+      return {
+        success: response.data.valid,
+        data: response.data.voucher || null,
+        voucher: response.data.voucher || null,
+        voucherId: response.data.voucherId,
+        discountAmount: response.data.discountAmount,
+        message: response.data.message,
+        isPersonal: response.data.isPersonal || false
+      }
+    } catch (error) {
+      console.error('Error validating voucher:', error)
+      throw error
+    }
   },
 
-  // Apply voucher to order
-  applyVoucher: async (voucherCode, orderData) => {
-    const api = createAPI()
-    
-    const response = await api.post('/vouchers/apply', {
-      maVoucher: voucherCode,
-      donHang: orderData
-    })
-    return response.data
+  // Apply voucher to invoice
+  applyVoucherToInvoice: async (voucherId, invoiceId) => {
+    try {
+      const api = createAPI()
+      
+      const response = await api.post(`/vouchers/apply/${voucherId}/invoice/${invoiceId}`)
+      
+      return {
+        success: response.data.success,
+        message: response.data.message
+      }
+    } catch (error) {
+      console.error('Error applying voucher to invoice:', error)
+      throw error
+    }
+  },
+
+  // Remove voucher from invoice
+  removeVoucherFromInvoice: async (invoiceId) => {
+    try {
+      const api = createAPI()
+      
+      const response = await api.delete(`/vouchers/remove/invoice/${invoiceId}`)
+      
+      return {
+        success: response.data.success,
+        message: response.data.message
+      }
+    } catch (error) {
+      console.error('Error removing voucher from invoice:', error)
+      throw error
+    }
   },
 
   // Get voucher details by code
@@ -105,23 +174,25 @@ export const voucherAPI = {
     if (!backendVoucher) return null
     
     return {
-      id: backendVoucher.id,
+      id: parseInt(backendVoucher.id) || backendVoucher.id,
       ma: backendVoucher.ma,
-      tenVoucher: backendVoucher.tenVoucher,
-      moTa: backendVoucher.moTa,
-      loaiGiamGia: backendVoucher.loaiGiamGia, // 'PERCENT' or 'FIXED'
-      giaTriGiam: backendVoucher.giaTriGiam,
-      giaTriGiamToiDa: backendVoucher.giaTriGiamToiDa,
-      donHangToiThieu: backendVoucher.donHangToiThieu,
-      soLuongSuDung: backendVoucher.soLuongSuDung,
-      soLuongToiDa: backendVoucher.soLuongToiDa,
+      tenVoucher: backendVoucher.tenPhieuGiamGia || backendVoucher.tenVoucher,
+      moTa: backendVoucher.moTa || `Giảm ${backendVoucher.loaiPhieuGiamGia === 'PERCENTAGE' ? backendVoucher.phanTramGiamGia + '%' : formatCurrency(backendVoucher.soTienGiamToiDa)}`,
+      loaiGiamGia: backendVoucher.loaiPhieuGiamGia === 'PERCENTAGE' ? 'PERCENT' : 'FIXED',
+      giaTriGiam: backendVoucher.loaiPhieuGiamGia === 'PERCENTAGE' ? backendVoucher.phanTramGiamGia : backendVoucher.soTienGiamToiDa,
+      giaTriGiamToiDa: backendVoucher.soTienGiamToiDa,
+      donHangToiThieu: backendVoucher.hoaDonToiThieu,
+      soLuongSuDung: backendVoucher.soLuongSuDung || 0,
+      soLuongToiDa: backendVoucher.soLuongToiDa || 999999,
       ngayBatDau: backendVoucher.ngayBatDau,
       ngayKetThuc: backendVoucher.ngayKetThuc,
-      trangThai: backendVoucher.trangThai,
-      loaiKhachHang: backendVoucher.loaiKhachHang, // 'ALL', 'NEW', 'VIP'
-      isActive: backendVoucher.trangThai === 'ACTIVE',
-      isExpired: new Date(backendVoucher.ngayKetThuc) < new Date(),
-      isUsedUp: backendVoucher.soLuongSuDung >= backendVoucher.soLuongToiDa
+      trangThai: backendVoucher.trangThai || 'ACTIVE',
+      loaiKhachHang: backendVoucher.loaiKhachHang || 'ALL',
+      isPersonal: backendVoucher.isPersonal || false,
+      discountAmount: backendVoucher.discountAmount || 0,
+      isActive: (backendVoucher.trangThai || 'ACTIVE') === 'ACTIVE',
+      isExpired: backendVoucher.ngayKetThuc ? new Date(backendVoucher.ngayKetThuc) < new Date() : false,
+      isUsedUp: backendVoucher.soLuongSuDung >= (backendVoucher.soLuongToiDa || 999999)
     }
   },
 

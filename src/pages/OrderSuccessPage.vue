@@ -341,8 +341,14 @@ onMounted(() => {
   // Auto redirect guest users to home page after 3 seconds
   if (!isAuthenticated.value) {
     setTimeout(() => {
-      toast.info('Chuyển về trang chủ...')
-      router.push('/')
+      toast.info('Chuyển đến trang tra cứu đơn hàng...')
+      router.push({
+        path: '/orders',
+        query: {
+          orderCode: orderDetails.value?.maHoaDon || route.query.orderId,
+          autoSearch: 'true'
+        }
+      })
     }, 3000) // Give time to see order details
   }
 })
