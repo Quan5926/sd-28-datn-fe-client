@@ -164,7 +164,13 @@
                 </span>
               </div>
               <!-- Discount Badge -->
-              <div v-if="product.discount" class="absolute top-2 left-2">
+              <div v-if="product.hasDiscount && product.campaignName" class="absolute top-2 left-2">
+                <span class="bg-gradient-to-r from-green-500 to-green-600 text-white px-3 py-1 text-xs font-bold rounded-full flex items-center gap-1 max-w-32">
+                  <i class="fas fa-tag text-xs"></i>
+                  <span class="truncate">{{ product.campaignName }}</span>
+                </span>
+              </div>
+              <div v-else-if="product.discount" class="absolute top-2 left-2">
                 <span class="bg-red-500 text-white px-2 py-1 text-xs font-bold rounded-full">
                   -{{ product.discount }}%
                 </span>
@@ -344,6 +350,67 @@ const visiblePages = computed(() => {
 const fetchProducts = async () => {
   try {
     const response = await productAPI.getProducts({ page: 0, size: 9999 })
+    
+    // Try to enrich with discount information
+    try {
+      const allProductDetails = await productAPI.getAllProductDetailsWithDiscount()
+      
+      // Create a map of discount information by product ID
+      const discountMap = new Map()
+      allProductDetails.forEach(detail => {
+        const productId = detail.idSanPham
+        console.log('Processing discount detail for SanPham:', {
+          detailId: detail.id,
+          productId: productId,
+          hasDiscount: detail.hasDiscount,
+          giaGiamGia: detail.giaGiamGia,
+          tenDotGiamGia: detail.tenDotGiamGia
+        })
+        
+        if (productId && detail.hasDiscount && detail.giaGiamGia) {
+          if (!discountMap.has(productId)) {
+            discountMap.set(productId, [])
+          }
+          discountMap.get(productId).push({
+            giaGiamGia: detail.giaGiamGia,
+            tenDotGiamGia: detail.tenDotGiamGia,
+            hasDiscount: detail.hasDiscount
+          })
+        }
+      })
+      
+      // Enrich existing products with discount information
+      response.content.forEach(product => {
+        const discountInfo = discountMap.get(product.id)
+        if (discountInfo && discountInfo.length > 0) {
+          // Find variants with discount
+          const variantsWithDiscount = discountInfo.filter(info => info.hasDiscount && info.giaGiamGia)
+          if (variantsWithDiscount.length > 0) {
+            // Add discount info to product's chiTietSanPhams
+            if (!product.chiTietSanPhams) product.chiTietSanPhams = []
+            variantsWithDiscount.forEach(discount => {
+              product.chiTietSanPhams.push({
+                giaGiamGia: discount.giaGiamGia,
+                tenDotGiamGia: discount.tenDotGiamGia,
+                hasDiscount: discount.hasDiscount
+              })
+            })
+          }
+        }
+      })
+      
+      console.log('Products enriched with discount info')
+      console.log('All products:', products.value.slice(0, 3).map(p => ({
+        id: p.id,
+        name: p.tenSanPham,
+        hasDiscount: p.hasDiscount,
+        campaignName: p.campaignName,
+        discountPrice: p.discountPrice
+      })))
+      console.log('Sample product with discount:', products.value.find(p => p.hasDiscount))
+    } catch (discountError) {
+      console.warn('Failed to enrich products with discount, using regular products:', discountError)
+    }
     
     products.value = response.content
       .filter(item => item.idTrangThai !== 4) // Filter out discontinued products

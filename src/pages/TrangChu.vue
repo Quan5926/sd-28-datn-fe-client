@@ -142,6 +142,77 @@ const fetchAllItems = async () => {
   try {
     const response = await productAPI.getProducts({ page: 0, size: 9999 })
     
+    // Try to enrich with discount information
+    try {
+      const allProductDetails = await productAPI.getAllProductDetailsWithDiscount()
+      
+      // Create a map of discount information by product ID
+      const discountMap = new Map()
+      allProductDetails.forEach(detail => {
+        // Use the new idSanPham field from backend
+        const productId = detail.idSanPham
+        console.log('Processing discount detail:', {
+          detailId: detail.id,
+          productId: productId,
+          idSanPham: detail.idSanPham,
+          tenSanPham: detail.tenSanPham,
+          hasDiscount: detail.hasDiscount,
+          giaGiamGia: detail.giaGiamGia,
+          tenDotGiamGia: detail.tenDotGiamGia
+        })
+        
+        if (productId && detail.hasDiscount && detail.giaGiamGia) {
+          if (!discountMap.has(productId)) {
+            discountMap.set(productId, [])
+          }
+          discountMap.get(productId).push({
+            giaGiamGia: detail.giaGiamGia,
+            tenDotGiamGia: detail.tenDotGiamGia,
+            hasDiscount: detail.hasDiscount
+          })
+        }
+      })
+      
+      console.log('Discount map created:', discountMap)
+      
+      // Enrich existing products with discount information
+      response.content.forEach(product => {
+        const discountInfo = discountMap.get(product.id)
+        console.log(`Checking product ${product.id} (${product.tenSanPham}):`, discountInfo)
+        
+        if (discountInfo && discountInfo.length > 0) {
+          // Find variants with discount
+          const variantsWithDiscount = discountInfo.filter(info => info.hasDiscount && info.giaGiamGia)
+          console.log(`Variants with discount for product ${product.id}:`, variantsWithDiscount)
+          
+          if (variantsWithDiscount.length > 0) {
+            // Add discount info to product's chiTietSanPhams
+            if (!product.chiTietSanPhams) product.chiTietSanPhams = []
+            variantsWithDiscount.forEach(discount => {
+              product.chiTietSanPhams.push({
+                giaGiamGia: discount.giaGiamGia,
+                tenDotGiamGia: discount.tenDotGiamGia,
+                hasDiscount: discount.hasDiscount
+              })
+            })
+            console.log(`Added discount info to product ${product.id}:`, product.chiTietSanPhams)
+          }
+        }
+      })
+      
+      console.log('Homepage products enriched with discount info')
+      console.log('All homepage products:', allItems.value.slice(0, 3).map(p => ({
+        id: p.id,
+        name: p.tenSanPham,
+        hasDiscount: p.hasDiscount,
+        campaignName: p.campaignName,
+        discountPrice: p.discountPrice
+      })))
+      console.log('Sample homepage product with discount:', allItems.value.find(p => p.hasDiscount))
+    } catch (discountError) {
+      console.warn('Failed to enrich homepage products with discount, using regular products:', discountError)
+    }
+    
     // Sắp xếp dữ liệu gốc theo trạng thái trước khi gán vào allItems
     const statusOrder = { '3': 1, '5': 2 }
     const sortedData = response.content.filter(item => item.idTrangThai !== 4).sort((a, b) => {
@@ -151,14 +222,23 @@ const fetchAllItems = async () => {
       if (statusA !== statusB) {
         return statusA - statusB
       }
-      return a.tenSanPham.localeCompare(b.tenSanPham)
+      return new Date(b.ngayTao) - new Date(a.ngayTao)
     })
 
-    allItems.value = sortedData.map((obj) => {
-      const mappedProduct = mapBackendToFrontend.product(obj)
+    // Map dữ liệu từ backend sang frontend format
+    allItems.value = sortedData.map(item => {
+      const mappedProduct = mapBackendToFrontend.product(item)
+      console.log('Mapped product:', {
+        id: mappedProduct.id,
+        name: mappedProduct.tenSanPham,
+        hasDiscount: mappedProduct.hasDiscount,
+        campaignName: mappedProduct.campaignName,
+        discountPrice: mappedProduct.discountPrice
+      })
       return {
         ...mappedProduct,
-        isAdded: cart.value.some((cartItem) => cartItem.id === obj.id),
+        originalPrice: null,
+        discount: null,
         isFavorite: false
       }
     })
@@ -179,12 +259,55 @@ const fetchCollectionItems = async (collection) => {
     const response = await productAPI.getProductsByCategory(collection.categoryName, 0, 20)
     
     if (response?.content?.length > 0) {
+      // Try to enrich collection products with discount information
+      try {
+        const allProductDetails = await productAPI.getAllProductDetailsWithDiscount()
+        
+        // Create a map of discount information by product ID
+        const discountMap = new Map()
+        allProductDetails.forEach(detail => {
+          const productId = detail.idSanPham
+          if (productId && detail.hasDiscount && detail.giaGiamGia) {
+            if (!discountMap.has(productId)) {
+              discountMap.set(productId, [])
+            }
+            discountMap.get(productId).push({
+              giaGiamGia: detail.giaGiamGia,
+              tenDotGiamGia: detail.tenDotGiamGia,
+              hasDiscount: detail.hasDiscount
+            })
+          }
+        })
+        
+        // Enrich collection products with discount information
+        response.content.forEach(product => {
+          const discountInfo = discountMap.get(product.id)
+          if (discountInfo && discountInfo.length > 0) {
+            // Add discount info to product's chiTietSanPhams
+            if (!product.chiTietSanPhams) product.chiTietSanPhams = []
+            discountInfo.forEach(discount => {
+              product.chiTietSanPhams.push({
+                giaGiamGia: discount.giaGiamGia,
+                tenDotGiamGia: discount.tenDotGiamGia,
+                hasDiscount: discount.hasDiscount
+              })
+            })
+            console.log(`Added discount info to collection product ${product.id}:`, discountInfo)
+          }
+        })
+        
+        console.log(`Collection ${collection.title} enriched with discount info`)
+      } catch (discountError) {
+        console.warn(`Failed to enrich collection ${collection.title} with discount info:`, discountError)
+      }
+      
       const mappedProducts = response.content.map(backendProduct => 
         mapBackendToFrontend.product(backendProduct)
       )
       
       collectionItems[collection.title] = mappedProducts
       console.log(`✅ Loaded ${mappedProducts.length} products for ${collection.title}`)
+      console.log(`Collection products with discount:`, mappedProducts.filter(p => p.hasDiscount))
     } else {
       console.warn(`⚠️ No products found for ${collection.title} with category "${collection.categoryName}"`)
       collectionItems[collection.title] = []
@@ -431,8 +554,9 @@ watch(cart, () => {
 </script>
 
 <template>
-  <!-- Truyền hàm xử lý cuộn xuống Banner -->
+  <!-- Banner Section -->
   <Banner @scroll-to-products="scrollToProducts" :collections="collections" />
+  
 
   <!-- Collections Section -->
   <div class="bg-gradient-to-b from-gray-50 to-white pt-8 pb-16">

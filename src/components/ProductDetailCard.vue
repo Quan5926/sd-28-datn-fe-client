@@ -340,13 +340,37 @@ watch(cart, () => {
           <h1 class="text-4xl lg:text-5xl font-extrabold text-gray-900 mb-2 font-josefin-sans">
             {{ productInfo.tenSanPham }}
           </h1>
-          <p class="text-2xl lg:text-3xl font-bold text-accent-dark mb-4 font-josefin-sans">
-            <span v-if="selectedVariant">{{ formatCurrency(selectedVariant.giaBan) }}</span>
-            <span v-else class="text-gray-500">
-              {{ formatCurrency(productInfo.giaBanThapNhat) }} -
-              {{ formatCurrency(productInfo.giaBanCaoNhat) }}
-            </span>
-          </p>
+          <!-- Price section with discount support -->
+          <div class="mb-4">
+            <div v-if="selectedVariant">
+              <!-- Show discount price if available -->
+              <div v-if="selectedVariant.hasDiscount && selectedVariant.giaGiamGia" class="space-y-2">
+                <p class="text-2xl lg:text-3xl font-bold text-green-600 font-josefin-sans">
+                  {{ formatCurrency(selectedVariant.giaGiamGia) }}
+                </p>
+                <p class="text-lg text-gray-500 line-through font-josefin-sans">
+                  {{ formatCurrency(selectedVariant.giaBan) }}
+                </p>
+                <div v-if="selectedVariant.tenDotGiamGia" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                  <i class="fas fa-tag mr-1"></i>
+                  {{ selectedVariant.tenDotGiamGia }}
+                </div>
+              </div>
+              <!-- Show regular price if no discount -->
+              <div v-else>
+                <p class="text-2xl lg:text-3xl font-bold text-accent-dark mb-4 font-josefin-sans">
+                  {{ formatCurrency(selectedVariant.giaBan) }}
+                </p>
+              </div>
+            </div>
+            <!-- Product range pricing when no variant selected -->
+            <div v-else>
+              <p class="text-2xl lg:text-3xl font-bold text-gray-500 mb-4 font-josefin-sans">
+                {{ formatCurrency(productInfo.giaBanThapNhat) }} -
+                {{ formatCurrency(productInfo.giaBanCaoNhat) }}
+              </p>
+            </div>
+          </div>
 
           <div
             class="bg-gray-50 p-6 rounded-xl mb-6 border border-gray-100 shadow-sm animate-fade-in-up"
@@ -550,9 +574,21 @@ watch(cart, () => {
                 </svg>
                 <div class="flex flex-col">
                   <p class="font-semibold text-sm">Giá:</p>
-                  <p class="text-accent-dark font-bold">
-                    {{ formatCurrency(selectedVariant.giaBan) }}
-                  </p>
+                  <!-- Show discount price if available -->
+                  <div v-if="selectedVariant.hasDiscount && selectedVariant.giaGiamGia" class="space-y-1">
+                    <p class="text-green-600 font-bold">
+                      {{ formatCurrency(selectedVariant.giaGiamGia) }}
+                    </p>
+                    <p class="text-gray-500 text-sm line-through">
+                      {{ formatCurrency(selectedVariant.giaBan) }}
+                    </p>
+                  </div>
+                  <!-- Show regular price if no discount -->
+                  <div v-else>
+                    <p class="text-accent-dark font-bold">
+                      {{ formatCurrency(selectedVariant.giaBan) }}
+                    </p>
+                  </div>
                 </div>
               </div>
               <div class="flex items-center space-x-3 text-gray-800">

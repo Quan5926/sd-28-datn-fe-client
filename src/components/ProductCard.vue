@@ -8,11 +8,17 @@
         @error="handleImageError"
       />
       
+      <!-- Discount badge - Priority display -->
+      <div v-if="product.hasDiscount && product.campaignName" class="discount-badge">
+        <i class="fas fa-tag"></i>
+        {{ product.campaignName }}
+      </div>
+      
       <!-- Stock badge -->
       <div v-if="product.stock <= 0" class="stock-badge out-of-stock">
         Hết hàng
       </div>
-      <div v-else-if="product.stock <= 5" class="stock-badge low-stock">
+      <div v-else-if="product.stock <= 5 && (!product.hasDiscount || !product.campaignName)" class="stock-badge low-stock">
         Còn {{ product.stock }}
       </div>
 
@@ -27,7 +33,19 @@
       <div class="product-brand">{{ product.brand || product.thuongHieu?.tenThuongHieu }}</div>
       <h3 class="product-name" @click="goToProductDetail">{{ product.tenSanPham }}</h3>
       <div class="product-price">
-        <span class="current-price">{{ formatPrice(product.price || product.giaBanThapNhat) }}</span>
+        <!-- Show discount price if available -->
+        <div v-if="product.hasDiscount && product.discountPrice" class="price-container">
+          <span class="discount-price">{{ formatPrice(product.discountPrice) }}</span>
+          <span class="original-price">{{ formatPrice(product.price || product.giaBanThapNhat) }}</span>
+          <div v-if="product.campaignName" class="campaign-name">
+            <i class="fas fa-tag"></i>
+            {{ product.campaignName }}
+          </div>
+        </div>
+        <!-- Show regular price if no discount -->
+        <div v-else class="price-container">
+          <span class="current-price">{{ formatPrice(product.price || product.giaBanThapNhat) }}</span>
+        </div>
       </div>
       
       <!-- Product attributes -->
@@ -183,6 +201,34 @@ export default {
     transform: scale(1.05);
   }
 
+  .discount-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 6px 10px;
+    border-radius: 16px;
+    font-size: 11px;
+    font-weight: 700;
+    color: white;
+    background: linear-gradient(135deg, #28a745, #20c997);
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    max-width: calc(100% - 60px);
+    
+    i {
+      font-size: 10px;
+      flex-shrink: 0;
+    }
+    
+    /* Truncate long campaign names */
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+
   .stock-badge {
     position: absolute;
     top: 8px;
@@ -250,6 +296,7 @@ export default {
     transition: color 0.3s ease;
     display: -webkit-box;
     -webkit-line-clamp: 2;
+    line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 
@@ -261,10 +308,46 @@ export default {
   .product-price {
     margin-bottom: 12px;
 
+    .price-container {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
     .current-price {
       font-size: 18px;
       font-weight: 700;
       color: #dc3545;
+    }
+
+    .discount-price {
+      font-size: 18px;
+      font-weight: 700;
+      color: #28a745;
+    }
+
+    .original-price {
+      font-size: 14px;
+      font-weight: 500;
+      color: #6c757d;
+      text-decoration: line-through;
+    }
+
+    .campaign-name {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 500;
+      color: #28a745;
+      background: rgba(40, 167, 69, 0.1);
+      padding: 2px 6px;
+      border-radius: 8px;
+      width: fit-content;
+
+      i {
+        font-size: 10px;
+      }
     }
   }
 

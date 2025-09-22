@@ -41,6 +41,18 @@ export const productAPI = {
     }
   },
 
+  // Get product details by ID with discount information
+  getProductDetailsWithDiscount: async (productId) => {
+    try {
+      const response = await apiClient.get(`/ban-hang-client/chi-tiet-san-pham-with-discount/${productId}`)
+      return response.data
+    } catch (error) {
+      console.error('Error fetching product details with discount:', error)
+      // Fallback to regular product details if discount API fails
+      return await productAPI.getProductDetails(productId)
+    }
+  },
+
   // Get all product details with pagination and search
   getAllProductDetails: async (params = {}) => {
     try {
@@ -55,6 +67,21 @@ export const productAPI = {
     } catch (error) {
       console.error('Error fetching all product details:', error)
       throw error
+    }
+  },
+
+  // Get all product details with discount information
+  getAllProductDetailsWithDiscount: async () => {
+    try {
+      console.log('Calling discount API: /ban-hang-client/chi-tiet-san-pham-with-discount')
+      const response = await apiClient.get('/ban-hang-client/chi-tiet-san-pham-with-discount')
+      console.log('Discount API response:', response.data?.slice(0, 2))
+      return response.data
+    } catch (error) {
+      console.error('Error fetching all product details with discount:', error)
+      console.log('Falling back to regular product details')
+      // Fallback to regular product details if discount API fails
+      return await productAPI.getAllProductDetails({ size: 9999 })
     }
   },
 
@@ -139,6 +166,19 @@ export const mapBackendToFrontend = {
       ? Math.min(...activeVariants.map(detail => detail.giaBan || 0).filter(price => price > 0))
       : 0;
 
+    // Find minimum discount price from active product details (if any have discount)
+    const variantsWithDiscount = activeVariants.filter(detail => detail.giaGiamGia && detail.giaGiamGia > 0);
+    const minDiscountPrice = variantsWithDiscount.length > 0
+      ? Math.min(...variantsWithDiscount.map(detail => detail.giaGiamGia).filter(price => price > 0))
+      : null;
+
+    // Check if any variant has discount
+    const hasAnyDiscount = variantsWithDiscount.length > 0;
+    const discountCampaigns = [...new Set(activeVariants
+      .filter(detail => detail.tenDotGiamGia)
+      .map(detail => detail.tenDotGiamGia))];
+    const campaignName = discountCampaigns.length > 0 ? discountCampaigns.join(' + ') : null;
+
     // Get main image URL with fallback
     let imageUrl = '/sneakers/sneakers-1-alt1.jpg';
     if (backendProduct.idAnhSanPham?.urlAnh) {
@@ -179,6 +219,14 @@ export const mapBackendToFrontend = {
       giaBanThapNhat: minPrice,
       price: minPrice,
       formattedPrice: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(minPrice),
+      // Discount information
+      giaGiamGia: minDiscountPrice,
+      discountPrice: minDiscountPrice,
+      formattedDiscountPrice: minDiscountPrice ? 
+        new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(minDiscountPrice) : null,
+      tenDotGiamGia: campaignName,
+      campaignName: campaignName,
+      hasDiscount: hasAnyDiscount,
       soLuongTonKho: totalStock,
       stock: totalStock,
       totalStock: totalStock,
@@ -219,28 +267,36 @@ export const mapBackendToFrontend = {
       ma: backendDetail.ma || '',
       idSanPham: backendDetail.idSanPham,
       productId: backendDetail.idSanPham?.id || backendDetail.idSanPham,
-      tenSanPham: backendDetail.idSanPham?.tenSanPham || 'Sản phẩm không tên',
-      name: backendDetail.idSanPham?.tenSanPham || 'Sản phẩm không tên',
-      brand: backendDetail.idSanPham?.idThuongHieu?.tenThuongHieu || 'Chưa xác định',
-      danhMuc: backendDetail.idSanPham?.idDanhMuc?.tenDanhMuc || 'Chưa phân loại',
-      categoryName: backendDetail.idSanPham?.idDanhMuc?.tenDanhMuc || 'Chưa phân loại',
+      tenSanPham: backendDetail.idSanPham?.tenSanPham || backendDetail.tenSanPham || 'Sản phẩm không tên',
+      name: backendDetail.idSanPham?.tenSanPham || backendDetail.tenSanPham || 'Sản phẩm không tên',
+      brand: backendDetail.idSanPham?.idThuongHieu?.tenThuongHieu || backendDetail.tenThuongHieu || 'Chưa xác định',
+      danhMuc: backendDetail.idSanPham?.idDanhMuc?.tenDanhMuc || backendDetail.tenDanhMuc || 'Chưa phân loại',
+      categoryName: backendDetail.idSanPham?.idDanhMuc?.tenDanhMuc || backendDetail.tenDanhMuc || 'Chưa phân loại',
       giaBan: backendDetail.giaBan || 0,
       price: backendDetail.giaBan || 0,
       formattedPrice: new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(backendDetail.giaBan || 0),
+      // Discount information
+      giaGiamGia: backendDetail.giaGiamGia || null,
+      discountPrice: backendDetail.giaGiamGia || null,
+      formattedDiscountPrice: backendDetail.giaGiamGia ? 
+        new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(backendDetail.giaGiamGia) : null,
+      tenDotGiamGia: backendDetail.tenDotGiamGia || null,
+      campaignName: backendDetail.tenDotGiamGia || null,
+      hasDiscount: backendDetail.hasDiscount || false,
       soLuongTonKho: backendDetail.soLuongTonKho || 0,
       stock: backendDetail.soLuongTonKho || 0,
-      mauSac: backendDetail.idMauSac?.tenMauSac || 'Chưa xác định',
-      color: backendDetail.idMauSac?.tenMauSac || 'Chưa xác định',
-      colorCode: backendDetail.idMauSac?.hex || backendDetail.idMauSac?.ma || '#CCCCCC',
+      mauSac: backendDetail.idMauSac?.tenMauSac || backendDetail.tenMauSac || 'Chưa xác định',
+      color: backendDetail.idMauSac?.tenMauSac || backendDetail.tenMauSac || 'Chưa xác định',
+      colorCode: backendDetail.idMauSac?.hex || backendDetail.hexMauSac || '#CCCCCC',
       colorId: backendDetail.idMauSac?.id,
-      kichCo: backendDetail.idKichCo?.tenKichCo || 'Chưa xác định',
-      size: backendDetail.idKichCo?.tenKichCo || 'Chưa xác định',
+      kichCo: backendDetail.idKichCo?.tenKichCo || backendDetail.tenKichCo || 'Chưa xác định',
+      size: backendDetail.idKichCo?.tenKichCo || backendDetail.tenKichCo || 'Chưa xác định',
       sizeId: backendDetail.idKichCo?.id,
-      chatLieu: backendDetail.idChatLieu?.tenChatLieu || 'Chưa xác định',
-      material: backendDetail.idChatLieu?.tenChatLieu || 'Chưa xác định',
+      chatLieu: backendDetail.idChatLieu?.tenChatLieu || backendDetail.tenChatLieu || 'Chưa xác định',
+      material: backendDetail.idChatLieu?.tenChatLieu || backendDetail.tenChatLieu || 'Chưa xác định',
       materialId: backendDetail.idChatLieu?.id,
-      anhSanPham: backendDetail.idAnhSanPham?.urlAnh || '/sneakers/sneakers-1-alt1.jpg',
-      imageUrl: backendDetail.idAnhSanPham?.urlAnh || '/sneakers/sneakers-1-alt1.jpg',
+      anhSanPham: backendDetail.idAnhSanPham?.urlAnh || backendDetail.urlAnhSanPham || '/sneakers/sneakers-1-alt1.jpg',
+      imageUrl: backendDetail.idAnhSanPham?.urlAnh || backendDetail.urlAnhSanPham || '/sneakers/sneakers-1-alt1.jpg',
       ngayTao: backendDetail.ngayTao,
       ngayCapNhat: backendDetail.ngayCapNhat,
       createdAt: backendDetail.ngayTao ? new Date(backendDetail.ngayTao) : new Date(),

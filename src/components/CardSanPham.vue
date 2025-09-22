@@ -25,6 +25,13 @@
           Hết hàng
         </span>
         <span
+          v-else-if="item.hasDiscount && item.campaignName"
+          class="bg-gradient-to-r from-green-500 to-green-600 text-white px-3 py-1 text-xs font-bold rounded-full flex items-center gap-1 max-w-32"
+        >
+          <i class="fas fa-tag text-xs"></i>
+          <span class="truncate">{{ item.campaignName }}</span>
+        </span>
+        <span
           v-else-if="item.discount"
           class="bg-red-500 text-white px-3 py-1 text-xs font-bold rounded-full"
         >

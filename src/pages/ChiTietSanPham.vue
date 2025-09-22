@@ -53,12 +53,23 @@
 
           <!-- Price -->
           <div class="flex items-center gap-3">
-            <span class="text-3xl font-bold text-gray-900">{{ formatPrice(selectedVariant.price) }}</span>
-            <span v-if="selectedVariant.originalPrice" class="text-xl text-gray-500 line-through">
-              {{ formatPrice(selectedVariant.originalPrice) }}
+            <!-- Show discount price if available -->
+            <span v-if="selectedVariant.hasDiscount && selectedVariant.giaGiamGia" class="text-3xl font-bold text-green-600">
+              {{ formatPrice(selectedVariant.giaGiamGia) }}
             </span>
-            <span v-if="selectedVariant.discount" class="bg-red-500 text-white px-2 py-1 text-sm font-bold rounded">
-              -{{ selectedVariant.discount }}%
+            <!-- Show regular price if no discount -->
+            <span v-else class="text-3xl font-bold text-gray-900">
+              {{ formatPrice(selectedVariant.price) }}
+            </span>
+            
+            <!-- Show original price (crossed out) when there's discount -->
+            <span v-if="selectedVariant.hasDiscount && selectedVariant.giaGiamGia" class="text-xl text-gray-500 line-through">
+              {{ formatPrice(selectedVariant.price) }}
+            </span>
+            
+            <!-- Show campaign name if available -->
+            <span v-if="selectedVariant.tenDotGiamGia" class="bg-green-500 text-white px-3 py-1 text-sm font-bold rounded-full">
+              <i class="fas fa-tag mr-1"></i>{{ selectedVariant.tenDotGiamGia }}
             </span>
           </div>
 
@@ -122,7 +133,13 @@
               </button>
             </div>
             <p v-if="selectedSize" class="text-sm text-gray-600 mt-2">
-              Còn {{ selectedSize.stock }} sản phẩm - {{ formatPrice(selectedSize.price) }}
+              Còn {{ selectedSize.stock }} sản phẩm - 
+              <span v-if="selectedVariant.hasDiscount && selectedVariant.giaGiamGia" class="font-semibold text-green-600">
+                {{ formatPrice(selectedVariant.giaGiamGia) }}
+              </span>
+              <span v-else class="font-semibold">
+                {{ formatPrice(selectedSize.price) }}
+              </span>
             </p>
           </div>
 
@@ -251,10 +268,34 @@ const availableSizesForColor = computed(() => {
 })
 
 const selectedVariant = computed(() => {
+  // Find the actual product detail for selected color and size
+  const selectedDetail = productDetails.value.find(detail => {
+    const mappedDetail = mapBackendToFrontend.productDetail(detail)
+    return mappedDetail.colorId === selectedColor.value?.id && 
+           mappedDetail.sizeId === selectedSize.value?.sizeId
+  })
+  
+  if (selectedDetail) {
+    const mappedDetail = mapBackendToFrontend.productDetail(selectedDetail)
+    const variant = {
+      price: mappedDetail.price,
+      giaGiamGia: mappedDetail.giaGiamGia,
+      tenDotGiamGia: mappedDetail.tenDotGiamGia,
+      hasDiscount: mappedDetail.hasDiscount,
+      stock: mappedDetail.stock
+    }
+    
+    console.log('Selected variant with discount info:', variant)
+    return variant
+  }
+  
+  // Fallback if no detail found
   return {
     price: selectedSize.value?.price || product.value.sizes[0]?.price || 2890000,
-    originalPrice: 3200000,
-    discount: 10
+    giaGiamGia: null,
+    tenDotGiamGia: null,
+    hasDiscount: false,
+    stock: 0
   }
 })
 
@@ -311,11 +352,15 @@ const addToCart = async () => {
         detailStock: mappedDetail.stock
       })
       
-      // Add to cart using cartService
+      // Add to cart using cartService - use discount price if available
+      const finalPrice = mappedDetail.hasDiscount && mappedDetail.giaGiamGia 
+        ? mappedDetail.giaGiamGia 
+        : mappedDetail.price
+        
       const cartResult = await cartService.addToCart(
         mappedDetail.id, // Real database ID
         1, // quantity
-        mappedDetail.price
+        finalPrice // Use discount price if available
       )
       
       console.log('Add to cart result:', cartResult)
@@ -403,9 +448,47 @@ const loadProductData = async () => {
     loading.value = true
     const productId = route.params.id
     
-    // Get product details
+    // Get product details (keep original logic)
     const detailsResponse = await productAPI.getProductDetails(productId)
     productDetails.value = detailsResponse
+    
+    // Try to enrich with discount information
+    try {
+      const discountDetails = await productAPI.getProductDetailsWithDiscount(productId)
+      console.log('Raw discount details from API:', discountDetails)
+      
+      // Create a map of discount information by detail ID
+      const discountMap = new Map()
+      discountDetails.forEach(detail => {
+        console.log('Processing discount detail:', detail)
+        discountMap.set(detail.id, {
+          giaGiamGia: detail.giaGiamGia,
+          tenDotGiamGia: detail.tenDotGiamGia,
+          hasDiscount: detail.hasDiscount
+        })
+      })
+      
+      // Enrich existing product details with discount information
+      productDetails.value.forEach(detail => {
+        const discountInfo = discountMap.get(detail.id)
+        if (discountInfo && discountInfo.hasDiscount && discountInfo.giaGiamGia) {
+          detail.giaGiamGia = discountInfo.giaGiamGia
+          detail.tenDotGiamGia = discountInfo.tenDotGiamGia
+          detail.hasDiscount = discountInfo.hasDiscount
+          console.log(`Enriched detail ${detail.id} with discount:`, {
+            originalPrice: detail.giaBan,
+            discountPrice: detail.giaGiamGia,
+            campaignName: detail.tenDotGiamGia,
+            hasDiscount: detail.hasDiscount
+          })
+        }
+      })
+      
+      console.log('Product details enriched with discount info')
+      console.log('Discount details from API:', discountDetails)
+    } catch (discountError) {
+      console.warn('Failed to enrich product details with discount, using regular details:', discountError)
+    }
     
     // Debug: Log product details from API
     console.log('Product Details from API:', detailsResponse)
